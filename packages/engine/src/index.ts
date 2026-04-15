@@ -82,3 +82,35 @@ export type {
   IterativeTSkinResult,
   RespiratoryHeatLossResult,
 } from './heat_balance/index.js';
+
+// Ensemble module — Session 8
+export {
+  // ensemble_im
+  ENSEMBLE_IM_MAP,
+  ENSEMBLE_LAYER_NAMES,
+  ENSEMBLE_LAYER_KEYS,
+  calcEnsembleIm,
+  // gear_layers
+  FIBER_ABSORPTION,
+  getFiberType,
+  getLayerCapacity,
+  breathabilityToIm,
+  activityCLO,
+  warmthToCLO,
+  buildLayerArray,
+  // effective_clo
+  pumpingReduction,
+  windCLOProtection,
+  staticLayeringCorrection,
+  computeEffectiveCLO,
+  clothingInsulation,
+} from './ensemble/index.js';
+
+export type {
+  EnsembleTier,
+  EnsembleLayer,
+  EnsembleImResult,
+  FiberType,
+  GearItem,
+  GearLayer,
+} from './ensemble/index.js';
