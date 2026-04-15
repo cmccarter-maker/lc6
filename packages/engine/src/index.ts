@@ -25,9 +25,9 @@ export {
   STAGE_PROMOTION_THRESHOLD_HR,
 } from './cdi/index.js';
 
-// Heat balance primitives (Session 6)
+// Heat balance module — Sessions 6 + 7
 export {
-  // Constants
+  // Session 6 constants
   L_V_J_PER_G,
   BASELINE_IM,
   TYPICAL_ENSEMBLE_IM,
@@ -37,25 +37,48 @@ export {
   C_HYGRO,
   DEFAULT_REGAIN_POLYESTER,
   ACTIVITY_LAYER_COUNT,
-  // VPD
+  // Session 7 constants
+  LC5_C_P_AIR,
+  LC5_RHO_AIR,
+  LC5_RHO_VAP_EXP,
+  LC5_SIGMA,
+  LC5_EMISS,
+  LC5_T_CORE_BASE,
+  LC5_BODY_SPEC_HEAT,
+  GAGGE_H_TISSUE_BASE,
+  GAGGE_VDIL_MAX,
+  GAGGE_VCON_MAX,
+  // Session 6 VPD + utilities
   satVaporPressure,
   vpdRatio,
   VPD_REF_HPA,
-  // Utilities
   getWindPenetration,
   getEnsembleCapacity,
   humidityFloorFactor,
   applyDurationPenalty,
   precipWettingRate,
-  // Evaporation
+  // Session 6 evaporation
   computeEmax,
   computeSweatRate,
   getDrainRate,
   hygroAbsorption,
+  // Session 7 body thermo
+  computeTissueCLO,
+  computeTSkin,
+  iterativeTSkin,
+  // Session 7 metabolism
+  computeVE,
+  computeMetabolicHeat,
+  computeRespiratoryHeatLoss,
+  // Session 7 environmental loss
+  computeConvectiveHeatLoss,
+  computeRadiativeHeatLoss,
 } from './heat_balance/index.js';
 
 export type {
   ComputeEmaxResult,
   ComputeSweatRateResult,
   SweatRegime,
+  IterativeTSkinResult,
+  RespiratoryHeatLossResult,
 } from './heat_balance/index.js';

@@ -95,3 +95,114 @@ export const MAGNUS_E0_HPA = 6.1078;  // hPa at 0°C
  * where base sweat rates were originally measured (ISO 8996, Parsons 2014).
  * Computed at module-load time in vpd.ts because depends on satVaporPressure.
  */
+
+/**
+ * PHY-056 atmospheric and physical constants for heat balance solver.
+ * Ported verbatim from LC5 risk_functions.js lines 6-13.
+ */
+
+/**
+ * Specific heat of dry air at constant pressure.
+ * 1.005 J/(g·°C). Source: ASHRAE Fundamentals.
+ * LC5 reference: risk_functions.js line 7 LC5_C_P_AIR.
+ */
+export const LC5_C_P_AIR = 1.005;
+
+/**
+ * Air density at sea level, 15°C (ISA standard atmosphere).
+ * 1.225 g/L. Source: ICAO Standard Atmosphere.
+ * LC5 reference: risk_functions.js line 8 LC5_RHO_AIR.
+ */
+export const LC5_RHO_AIR = 1.225;
+
+/**
+ * Expired air vapor density (saturated at 37°C body core temperature).
+ * 44.0 g/m³. Computed from Magnus formula + ideal gas law at 37°C, 100% RH.
+ * LC5 reference: risk_functions.js line 9 LC5_RHO_VAP_EXP.
+ */
+export const LC5_RHO_VAP_EXP = 44.0;
+
+/**
+ * Stefan-Boltzmann constant.
+ * 5.67e-8 W/(m²·K⁴). Physical constant.
+ * LC5 reference: risk_functions.js line 10 LC5_SIGMA.
+ */
+export const LC5_SIGMA = 5.67e-8;
+
+/**
+ * Clothing surface emissivity for radiative heat loss.
+ * 0.95. Source: ASHRAE Fundamentals Ch.9 (clothing emissivity range 0.92-0.97).
+ * LC5 reference: risk_functions.js line 11 LC5_EMISS.
+ */
+export const LC5_EMISS = 0.95;
+
+/**
+ * Baseline core body temperature.
+ * 37.0 °C. Standard human physiology setpoint.
+ * LC5 reference: risk_functions.js line 12 LC5_T_CORE_BASE.
+ */
+export const LC5_T_CORE_BASE = 37.0;
+
+/**
+ * Body specific heat capacity for thermal mass calculations.
+ * 3490 J/(kg·°C). Source: Gagge 1972 (cited in LC5 source comment).
+ * LC5 reference: risk_functions.js line 13 LC5_BODY_SPEC_HEAT.
+ */
+export const LC5_BODY_SPEC_HEAT = 3490;
+
+/**
+ * Gagge two-node baseline tissue conductance.
+ * 5.28 W/(m²·K). Source: Gagge AP, 1972, Building Service Engineer.
+ * Used as h_tissue floor in iterativeTSkin; modified by vasomotor response (vdil/vcon).
+ */
+export const GAGGE_H_TISSUE_BASE = 5.28;
+
+/**
+ * Maximum vasodilation contribution to h_tissue (W/(m²·K)).
+ * Caps tissue conductance increase under heat stress.
+ * Source: Gagge two-node model (Gagge 1972).
+ */
+export const GAGGE_VDIL_MAX = 45.0;
+
+/**
+ * Maximum vasoconstriction reduction to h_tissue (W/(m²·K)).
+ * Caps tissue conductance decrease under cold stress.
+ * Source: Gagge two-node model (Gagge 1972).
+ */
+export const GAGGE_VCON_MAX = 3.0;
+
+/**
+ * Vasoconstriction onset threshold (°C T_skin).
+ * Below this T_skin, vasoconstriction begins.
+ * Source: Gagge two-node model (Gagge 1972).
+ */
+export const GAGGE_VCON_THRESHOLD_C = 33.0;
+
+/**
+ * Vasoconstriction sensitivity slope.
+ * vcon = (33 - T_skin) × 0.5, capped at GAGGE_VCON_MAX.
+ * Source: Gagge two-node model (Gagge 1972).
+ */
+export const GAGGE_VCON_SLOPE = 0.5;
+
+/**
+ * Mechanical work fraction of metabolic rate.
+ * W = M × 0.10 in iterativeTSkin. Source: Gagge two-node convention.
+ */
+export const GAGGE_MECHANICAL_WORK_FRACTION = 0.10;
+
+/**
+ * Clothing area factor base.
+ * Used in iterativeTSkin and elsewhere: fcl = 1.0 + 0.31 × CLO.
+ * Source: McCullough & Jones 1984.
+ * Already present logically in evaporation.ts via inline 0.31 — exposed here
+ * for future test cross-reference.
+ */
+export const CLOTHING_AREA_FACTOR_SLOPE = 0.31;
+
+/**
+ * Linearized radiative heat transfer coefficient for skin/clothing surface.
+ * 4.7 W/(m²·K). Used in iterativeTSkin Qrad calculation.
+ * Source: ASHRAE Fundamentals Ch.9 (linearized Stefan-Boltzmann at body temperature).
+ */
+export const H_RAD_LINEARIZED = 4.7;
