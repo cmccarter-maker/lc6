@@ -80,3 +80,21 @@ export {
 export type { ComputeEmaxResult, ComputeSweatRateResult, SweatRegime } from './evaporation.js';
 export type { IterativeTSkinResult } from './body_thermo.js';
 export type { RespiratoryHeatLossResult } from './metabolism.js';
+
+// Session 9a — body anthropometry
+export { duboisBSA } from './body_thermo.js';
+
+// Session 9a — EPOC + core temp
+export {
+  epocParams,
+  epocTau,
+  estimateCoreTemp,
+} from './epoc.js';
+export type { EpocParamsResult } from './epoc.js';
+
+// Session 9a — cold physiology
+export {
+  civdProtectionFactor,
+  shiveringBoost,
+  computeHLR,
+} from './cold_physiology.js';

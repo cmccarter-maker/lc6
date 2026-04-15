@@ -184,3 +184,28 @@ export function iterativeTSkin(
     vasodilation: vdil,
   };
 }
+
+/**
+ * DuBois body surface area estimate (m²) from body weight in pounds.
+ *
+ * Uses a stratified height lookup to avoid requiring height as a parameter:
+ *   < 60 kg  → 165 cm
+ *   60-80 kg → 173 cm
+ *   80-100 kg → 178 cm
+ *   100-120 kg → 180 cm
+ *   120-140 kg → 183 cm
+ *   ≥ 140 kg → 185 cm
+ *
+ * Formula: BSA = 0.007184 × height_cm^0.725 × weight_kg^0.425
+ * Source: DuBois D & DuBois EF (1916) "A formula to estimate surface area"
+ *
+ * LC5 risk_functions.js lines 3873-3877.
+ *
+ * @param weightLb body weight in pounds (defaults to 150 if null/undefined)
+ * @returns body surface area in m²
+ */
+export function duboisBSA(weightLb: number | null | undefined): number {
+  const kg = (weightLb ?? 150) * 0.453592;
+  const hCm = kg < 60 ? 165 : kg < 80 ? 173 : kg < 100 ? 178 : kg < 120 ? 180 : kg < 140 ? 183 : 185;
+  return 0.007184 * Math.pow(hCm, 0.725) * Math.pow(kg, 0.425);
+}

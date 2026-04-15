@@ -25,7 +25,7 @@ export {
   STAGE_PROMOTION_THRESHOLD_HR,
 } from './cdi/index.js';
 
-// Heat balance module — Sessions 6 + 7
+// Heat balance module — Sessions 6 + 7 + 9a
 export {
   // Session 6 constants
   L_V_J_PER_G,
@@ -73,6 +73,16 @@ export {
   // Session 7 environmental loss
   computeConvectiveHeatLoss,
   computeRadiativeHeatLoss,
+  // Session 9a body anthropometry
+  duboisBSA,
+  // Session 9a EPOC + core temp
+  epocParams,
+  epocTau,
+  estimateCoreTemp,
+  // Session 9a cold physiology
+  civdProtectionFactor,
+  shiveringBoost,
+  computeHLR,
 } from './heat_balance/index.js';
 
 export type {
@@ -81,16 +91,15 @@ export type {
   SweatRegime,
   IterativeTSkinResult,
   RespiratoryHeatLossResult,
+  EpocParamsResult,
 } from './heat_balance/index.js';
 
 // Ensemble module — Session 8
 export {
-  // ensemble_im
   ENSEMBLE_IM_MAP,
   ENSEMBLE_LAYER_NAMES,
   ENSEMBLE_LAYER_KEYS,
   calcEnsembleIm,
-  // gear_layers
   FIBER_ABSORPTION,
   getFiberType,
   getLayerCapacity,
@@ -98,7 +107,6 @@ export {
   activityCLO,
   warmthToCLO,
   buildLayerArray,
-  // effective_clo
   pumpingReduction,
   windCLOProtection,
   staticLayeringCorrection,
@@ -114,3 +122,36 @@ export type {
   GearItem,
   GearLayer,
 } from './ensemble/index.js';
+
+// Moisture module — Session 9a
+export {
+  PERCEIVED_WEIGHTS,
+  COMFORT_THRESHOLD,
+  computePerceivedMR,
+  applySaturationCascade,
+} from './moisture/index.js';
+
+export type { PerceivedMRLayer } from './moisture/index.js';
+
+// Activities module — Session 9a
+export {
+  WADER_DATA,
+  SNOW_SPORT_ZONES,
+  waderSplitIm,
+  waderSplitCLO,
+  snowSportSplitIm,
+  descentSpeedWind,
+  ACTIVITY_SWEAT_PROFILES,
+  INTERMITTENT_PHASE_PROFILES,
+  GENERIC_GEAR_SCORES_BY_SLOT,
+} from './activities/index.js';
+
+export type {
+  WaderEntry,
+  SnowSportZone,
+  DescentSpeedWindResult,
+  ActivitySweatProfile,
+  PhaseDefinition,
+  PhaseProfile,
+  GearSlotScores,
+} from './activities/index.js';
