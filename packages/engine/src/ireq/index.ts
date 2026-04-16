@@ -6,5 +6,6 @@ export { psks_kPa, pa_kPa, tex_C, pex_kPa, m2KW_to_clo, clo_to_m2KW } from './he
 export { IREQ_neu, IREQ_min } from './ireq.js';
 export { DLE_neu, DLE_min } from './dle.js';
 export { ACTIVITY_MET, SKI_TERRAIN_MET, resolveActivityMet, LUND_M_CAP } from './activity_met.js';
+export type { ActivityMetEntry } from './activity_met.js';
 export { computeActivityIREQ } from './compute.js';
-export type { ActivityIREQResult, ActivityIREQExcluded, ActivityIREQOutput, ActivityMetEntry } from './compute.js';
+export type { ActivityIREQResult, ActivityIREQExcluded, ActivityIREQOutput } from './compute.js';
