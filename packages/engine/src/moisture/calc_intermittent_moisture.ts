@@ -403,7 +403,7 @@ export function calcIntermittentMoisture(
 
   // === CLOSURES: phaseSweatRate + getPhaseWind ===
   const phaseSweatRate = (phaseInt: string, phaseDurMin: number | undefined, phaseName: string): number => {
-    const base = (sweatProfile as Record<string, number>)[phaseInt] ?? sweatProfile.moderate;
+    const base = (sweatProfile as unknown as Record<string, number>)[phaseInt] ?? sweatProfile.moderate;
     const effectiveTemp = isDrysuit ? Math.max(tempF, Math.min(80, tempF + 30)) : tempF;
     const rawTempMul = effectiveTemp > 80 ? 1.5 : effectiveTemp > 65 ? 1.0 : effectiveTemp > 45 ? 0.6 : effectiveTemp > 30 ? 0.35 : 0.2;
     const tempMul = rawTempMul;

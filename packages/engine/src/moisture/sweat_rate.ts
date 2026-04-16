@@ -44,7 +44,7 @@ export function sweatRate(
 ): number {
   const isDrysuit = immersionGear === 'drysuit' || immersionGear === true;
   const profile = ACTIVITY_SWEAT_PROFILES[activity] ?? ACTIVITY_SWEAT_PROFILES.hiking!;
-  let base = (profile as Record<string, number>)[intensity] ?? profile.moderate;
+  let base = (profile as unknown as Record<string, number>)[intensity] ?? profile.moderate;
   if (activity === 'golf' && golfCartRiding) {
     base = base * 0.45;
   }
