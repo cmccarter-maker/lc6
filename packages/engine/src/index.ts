@@ -188,7 +188,8 @@ export { elevTempAdj } from './heat_balance/index.js';
 export { calcBCPhasePercentages } from './activities/index.js';
 export type { BCPhasePercentages } from './activities/index.js';
 
-// IREQ module — ISO 11079 cold stress (Block 1 + Block 2)
+
+// IREQ module — ISO 11079 cold stress (Block 1 + Block 2 + Block 3)
 export {
   IREQ_neu,
   IREQ_min,
@@ -196,4 +197,10 @@ export {
   DLE_min,
   m2KW_to_clo,
   clo_to_m2KW,
+  computeActivityIREQ,
+  ACTIVITY_MET,
+  SKI_TERRAIN_MET,
+  resolveActivityMet,
+  LUND_M_CAP,
 } from './ireq/index.js';
+export type { ActivityIREQResult, ActivityIREQExcluded, ActivityIREQOutput } from './ireq/index.js';
