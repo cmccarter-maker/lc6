@@ -187,3 +187,13 @@ export { sweatRate } from './moisture/index.js';
 export { elevTempAdj } from './heat_balance/index.js';
 export { calcBCPhasePercentages } from './activities/index.js';
 export type { BCPhasePercentages } from './activities/index.js';
+
+// IREQ module — ISO 11079 cold stress (Block 1 + Block 2)
+export {
+  IREQ_neu,
+  IREQ_min,
+  DLE_neu,
+  DLE_min,
+  m2KW_to_clo,
+  clo_to_m2KW,
+} from './ireq/index.js';
