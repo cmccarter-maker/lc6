@@ -129,7 +129,7 @@ describe('validate()', () => {
 
   it('rejects missing activity', () => {
     const input = makeBreckInput();
-    (input as Record<string, unknown>).activity = undefined;
+    (input as unknown as Record<string, unknown>).activity = undefined;
     expect(() => validate(input)).toThrow('activity is required');
   });
 

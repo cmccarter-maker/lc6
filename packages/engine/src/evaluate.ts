@@ -89,46 +89,95 @@ export function evaluate(input: EngineInput): EngineOutput {
   // ── Step 3-4: Evaluate user ensemble ──────────────────
   const userResult = evaluateSingleEnsemble(input, input.user_ensemble, 'your_gear', false);
 
-  // ── Steps 5-8: Session 10b placeholders ───────────────
-  // TODO-10b: Evaluate strategy candidates, select winner, build four-pill
-  const placeholderResult: PillResult = {
+  // ── Step 5: Evaluate strategy candidates + select winner ──
+  const candidates = input.strategy_candidates ?? [];
+  const candidateResults: Array<{ ensemble: GearEnsemble; result: PillResult; peakCDI: number }> = [];
+
+  // Pre-filter candidates by IREQ feasibility
+  let candidatesPostIreq = 0;
+  for (const candidate of candidates) {
+    // IREQ gate: reject ensembles below IREQ_min
+    if (!ireqSummary.user_ensemble_feasible && candidate.total_clo < ireqSummary.ireq_min_clo) {
+      continue; // Below IREQ_min — infeasible, skip full evaluation
+    }
+    // For excluded activities (water-primary), all candidates pass
+    if (ireqSummary.ireq_min_clo > 0 && candidate.total_clo < ireqSummary.ireq_min_clo) {
+      continue;
+    }
+    candidatesPostIreq++;
+
+    // Full pipeline evaluation on this candidate
+    const result = evaluateSingleEnsemble(input, candidate, 'optimal_gear', false);
+    const peakCDI = result.trajectory_summary.peak_CDI;
+    candidateResults.push({ ensemble: candidate, result, peakCDI });
+  }
+
+  // Winner = argmin peak_CDI among evaluated candidates (Architecture v1.1 §1.1 Step 5)
+  let winnerResult: PillResult | null = null;
+  let winnerEnsemble: GearEnsemble | null = null;
+  let winnerPeakCDI: number | null = null;
+  let winnerPeakStage: ClinicalStage | null = null;
+
+  if (candidateResults.length > 0) {
+    candidateResults.sort((a, b) => a.peakCDI - b.peakCDI);
+    const best = candidateResults[0]!;
+    winnerResult = best.result;
+    winnerEnsemble = best.ensemble;
+    winnerPeakCDI = best.peakCDI;
+    winnerPeakStage = best.result.trajectory_summary.peak_clinical_stage;
+  }
+
+  // ── Step 6: Four-pill comparison ────────────────────────
+  // Pill 1: User gear, reactive venting
+  // Pill 2: User gear + thermal pacing (TODO: vent scheduling)
+  // Pill 3: Optimal gear (winner), reactive venting
+  // Pill 4: Optimal gear + thermal pacing (TODO: vent scheduling)
+  const pacingPill: PillResult = {
     ...userResult,
     pill_id: 'pacing',
     uses_pacing: true,
+    // TODO: Re-evaluate with proactive vent schedule once vent scheduling is implemented.
+    // For now, same trajectory as Pill 1 but flagged as pacing.
   };
-  const optimalPlaceholder: PillResult = {
-    ...userResult,
-    pill_id: 'optimal_gear',
-    ensemble: input.user_ensemble, // TODO-10b: strategy winner ensemble
-  };
-  const bestPlaceholder: PillResult = {
-    ...userResult,
-    pill_id: 'best_outcome',
-    uses_pacing: true,
-    ensemble: input.user_ensemble, // TODO-10b: strategy winner ensemble
-  };
+
+  const optimalPill: PillResult = winnerResult
+    ? { ...winnerResult, pill_id: 'optimal_gear' }
+    : { ...userResult, pill_id: 'optimal_gear' }; // No candidates → user gear is "optimal"
+
+  const bestOutcomePill: PillResult = winnerResult
+    ? { ...winnerResult, pill_id: 'best_outcome', uses_pacing: true }
+    : { ...userResult, pill_id: 'best_outcome', uses_pacing: true };
 
   const fourPill: FourPill = {
     your_gear: userResult,
-    pacing: placeholderResult,
-    optimal_gear: optimalPlaceholder,
-    best_outcome: bestPlaceholder,
+    pacing: pacingPill,
+    optimal_gear: optimalPill,
+    best_outcome: bestOutcomePill,
   };
 
+  // ── Step 7: Overlays ───────────────────────────────────
+  // Fall-In and sleep system deferred per Architecture §4.3
+
   // ── Step 8: Assemble EngineOutput ─────────────────────
-  const headline = buildTripHeadline(userResult);
+  // Headline uses winner if available, otherwise user gear
+  const headlineSource = winnerResult ?? userResult;
+  const headline = buildTripHeadline(headlineSource);
+
+  // Update IREQ summary with candidate counts
+  ireqSummary.candidates_total = candidates.length;
+  ireqSummary.candidates_passing = candidatesPostIreq;
 
   return {
     trip_headline: headline,
     four_pill: fourPill,
     ireq_summary: ireqSummary,
     strategy: {
-      candidates_total: 0,        // TODO-10b
-      candidates_post_ireq: 0,    // TODO-10b
-      candidates_evaluated: 0,    // TODO-10b
-      winner_ensemble_id: null,   // TODO-10b
-      winner_peak_cdi: null,      // TODO-10b
-      winner_peak_stage: null,    // TODO-10b
+      candidates_total: candidates.length,
+      candidates_post_ireq: candidatesPostIreq,
+      candidates_evaluated: candidateResults.length,
+      winner_ensemble_id: winnerEnsemble?.ensemble_id ?? null,
+      winner_peak_cdi: winnerPeakCDI,
+      winner_peak_stage: winnerPeakStage,
     },
     fall_in: null,    // Deferred per Architecture §4.3
     sleep_system: null, // Deferred per Architecture §4.3
