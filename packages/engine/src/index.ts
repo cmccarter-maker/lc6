@@ -204,3 +204,46 @@ export {
   LUND_M_CAP,
 } from './ireq/index.js';
 export type { ActivityIREQResult, ActivityIREQExcluded, ActivityIREQOutput } from './ireq/index.js';
+
+// Session 10: evaluate pipeline + strategy enumeration
+export { evaluate } from './evaluate.js';
+export { validate, ValidationError } from './validate.js';
+export { enumerateCandidates } from './strategy/index.js';
+export type { EnumerateOptions } from './strategy/index.js';
+
+// Re-export Session 10a types needed by consumers
+export type {
+  EngineInput,
+  EngineOutput,
+  TrajectoryPoint,
+  SegmentSummary,
+  TripHeadline,
+  PillResult,
+  FourPill,
+  IREQSummary,
+  StrategyMetadata,
+  FallInOverlay,
+  SleepSystemOverlay,
+  CmCard,
+  CmTriggerState,
+  CmTriggerType,
+  Severity,
+  MitigationType,
+  BindingPathway,
+  TrajectorySnapshot,
+  PillId,
+  ComfortHourEscalation,
+  SegmentSpec,
+  ActivitySpec,
+  WeatherSlice,
+  LocationSpec,
+  UserBiometrics,
+  FitnessProfile,
+  EngineGearItem,
+  GearEnsemble,
+  GearSlot,
+  VentEvent,
+  VentingState,
+  EpocState,
+  PackState,
+} from './types.js';
