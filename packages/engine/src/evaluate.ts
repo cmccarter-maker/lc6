@@ -61,7 +61,12 @@ import {
 import type { GearItem as EnsembleGearItem } from './ensemble/index.js';
 
 // Heat balance — for supplementary pass
-import { civdProtectionFactor } from './heat_balance/index.js';
+import {
+  civdProtectionFactor,
+  shiveringBoost,
+  duboisBSA,
+  computeHLR,
+} from './heat_balance/index.js';
 
 // ── Constants ───────────────────────────────────────────
 const ENGINE_VERSION = '0.10.0-alpha'; // Session 10a
@@ -339,6 +344,9 @@ function buildTrajectory(
   const w = seg.weather[0]!;
   const ta_C = (w.temp_f - 32) * 5 / 9;
 
+  // Supplementary pass: resolve activity MET for shiveringBoost
+  const _activityMET = resolveActivityMETForSupplementary(input.activity.activity_id);
+
   // Determine number of cycles from per-cycle arrays
   const cycleCount = mr.perCycleMR?.length ?? 0;
   if (cycleCount === 0) {
@@ -370,12 +378,12 @@ function buildTrajectory(
     // vasoconstriction_active: CIVD < threshold means constriction engaged
     const vasoconstriction_active = civd < CIVD_VASOCONSTRICTION_THRESHOLD;
 
-    // Q_shiver: TODO-SUPPLEMENTARY — full supplementary pass would call
-    // shiveringBoost(ta_C, MET, totalCLO+tissueCLO, bodyFatPct).
-    // For 10a, derive from S: if S < -20 and T_core < 36, shivering likely.
-    // This is a heuristic placeholder; the real value comes from the
-    // supplementary pass in a follow-up session.
-    const Q_shiver = (S_heat < -20 && T_core < 36.0 && T_core > 32.0) ? Math.abs(S_heat) * 0.3 : 0;
+    // Q_shiver: SUPPLEMENTARY PASS — real shiveringBoost (Young et al. 1986)
+    const _bsa = duboisBSA(input.biometrics.weight_lb);
+    const _bodyFatPct = input.biometrics.body_fat_pct ?? 20;
+    const _tissueCLO = 0.6; // baseline tissue insulation estimate
+    const _shivMETs = shiveringBoost(ta_C, _activityMET, ensemble.total_clo + _tissueCLO, _bodyFatPct);
+    const Q_shiver = _shivMETs * 58.2 * _bsa; // METs → Watts total-body
 
     // Track shivering history for sustained detection
     qShiverHistory.push(Q_shiver);
@@ -911,4 +919,21 @@ function buildTriggerState(
     return { threshold_crossed: false, projected_crossing_eta: cycleDurS / 3600 };
   }
   return { threshold_crossed: false, projected_crossing_eta: null };
+}
+
+/** Resolve approximate activity MET for supplementary shiveringBoost pass. */
+function resolveActivityMETForSupplementary(activityId: string): number {
+  // Approximate METs from Ainsworth 2011 Compendium.
+  // This is for the supplementary pass only — calcIntermittentMoisture
+  // uses its own internal MET resolution with full phase profiles.
+  const metMap: Record<string, number> = {
+    skiing: 5.5, snowboarding: 5.0, cross_country_ski: 7.0,
+    hiking: 6.0, day_hike: 5.5, backpacking: 7.0,
+    road_cycling: 8.0, gravel_biking: 7.0, mountain_biking: 8.5,
+    running: 8.0, trail_running: 9.0,
+    golf: 3.5, fishing: 2.5, hunting: 3.0,
+    climbing: 5.5, bouldering: 5.0, snowshoeing: 6.5,
+    camping: 2.0, kayaking: 5.0, paddle_boarding: 4.0,
+  };
+  return metMap[activityId] ?? 4.0;
 }
