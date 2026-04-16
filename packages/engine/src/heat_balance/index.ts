@@ -98,3 +98,10 @@ export {
   shiveringBoost,
   computeHLR,
 } from './cold_physiology.js';
+
+// Session 9b — altitude helpers
+export { calcElevationHumidity, altitudeFactors } from './altitude.js';
+export type { AltitudeFactorsResult } from './altitude.js';
+
+// Session 9b — metabolic efficiency
+export { getMetabolicEfficiency } from './metabolism.js';

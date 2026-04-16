@@ -3,6 +3,7 @@
 // Per Cardinal Rule #8: do not modify without Chat-produced spec amendment.
 
 import { BASELINE_IM } from '../heat_balance/constants.js';
+import { humidityFloorFactor } from '../heat_balance/utilities.js';
 
 /**
  * Wader gear data for fishing split-body model (PHY-052).
@@ -131,4 +132,35 @@ export function snowSportSplitIm(ensembleIm: number | null | undefined): number 
     z.feet!.frac * (z.feet!.im ?? 0) +
     z.calves!.frac * (z.calves!.im ?? 0) +
     z.face!.frac * (z.face!.im ?? 0);
+}
+
+/**
+ * Wader-aware evaporation floor (PHY-051).
+ *
+ * Split-body evaporation rate: 45% upper body (normal evaporation) +
+ * 55% lower body (wader-dependent).
+ *
+ * Sealed neoprene waders: lower body uses computed evap as-is (sealed = no floor help).
+ * Breathable waders: lower body uses floor-floored evaporation (same as upper).
+ * No wader: returns upper evaporation unchanged.
+ *
+ * LC5 risk_functions.js lines 2018-2025.
+ *
+ * @param computedEvap pre-computed evaporation rate (dimensionless fraction)
+ * @param rh relative humidity (0-100)
+ * @param waderType wader gear identifier
+ * @param fishWading whether user is wading
+ */
+export function waderEvapFloor(
+  computedEvap: number,
+  rh: number,
+  waderType: string | null | undefined,
+  fishWading: boolean | null | undefined,
+): number {
+  const floor = 0.02 * humidityFloorFactor(rh);
+  const upperEvap = Math.max(floor, computedEvap);
+  if (!waderType || !fishWading || !WADER_DATA[waderType]) return upperEvap;
+  const isSealed = WADER_DATA[waderType]!.im === 0;
+  const lowerEvap = isSealed ? computedEvap : Math.max(floor, computedEvap);
+  return 0.45 * upperEvap + 0.55 * lowerEvap;
 }

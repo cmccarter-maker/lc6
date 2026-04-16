@@ -155,3 +155,29 @@ export type {
   PhaseProfile,
   GearSlotScores,
 } from './activities/index.js';
+
+// Session 9b additions
+export {
+  calcElevationHumidity,
+  altitudeFactors,
+  getMetabolicEfficiency,
+} from './heat_balance/index.js';
+
+export type { AltitudeFactorsResult } from './heat_balance/index.js';
+
+export {
+  waderEvapFloor,
+} from './activities/index.js';
+
+export {
+  CROSSOVER_LITERS,
+  FATIGUE_PER_MIN,
+  RECOVERY_PER_MIN,
+  MAX_FATIGUE,
+  TAU_CLOTHING,
+  TAU_COOL,
+  GENERIC_LAYER_CAPS,
+  calcIntermittentMoisture,
+} from './moisture/index.js';
+
+export type { IntermittentMoistureResult } from './moisture/index.js';

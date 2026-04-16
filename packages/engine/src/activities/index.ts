@@ -26,3 +26,6 @@ export type {
   PhaseProfile,
   GearSlotScores,
 } from './profiles.js';
+
+// Session 9b — wader evaporation floor
+export { waderEvapFloor } from './split_body.js';

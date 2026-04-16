@@ -102,3 +102,49 @@ export function computeRespiratoryHeatLoss(
 export function computeMetabolicHeat(MET: number, bodyMassKg: number): number {
   return MET * 1.163 * bodyMassKg * 0.83;
 }
+
+/**
+ * ECO-001: VO₂-based metabolic efficiency scaling.
+ *
+ * 5-band model based on ventilatory threshold (~70% VO₂max):
+ *   relInt > 0.85 → 1.50 (near max: emergency thermoregulation)
+ *   relInt > 0.70 → 1.30 (above VT: disproportionate sweat)
+ *   relInt > 0.55 → 1.00 (moderate: baseline)
+ *   relInt > 0.40 → 0.80 (light: efficient thermoregulation)
+ *   relInt ≤ 0.40 → 0.65 (easy: minimal sweat)
+ *
+ * Tier 1: explicit userVO2max.
+ * Tier 2: estimate from resting HR (Uth-Sorensen 2004).
+ * Tier 3: no data → return 1.0 (identity, preserves baseline behavior).
+ *
+ * LC5 risk_functions.js lines 1766-1783.
+ *
+ * @param activityMET MET value for the activity
+ * @param userVO2max explicit VO₂max (ml/kg/min), optional
+ * @param age user age, optional (used for HR-based estimation)
+ * @param sex 'male' or 'female', optional
+ * @param restingHR resting heart rate, optional (Tier 2 estimation)
+ */
+export function getMetabolicEfficiency(
+  activityMET: number,
+  userVO2max: number | null | undefined,
+  age: number | null | undefined,
+  sex: string | null | undefined,
+  restingHR: number | null | undefined,
+): number {
+  let vo2 = userVO2max ?? null;
+  // Tier 2: Estimate from resting HR (Uth-Sorensen 2004)
+  if (!vo2 && restingHR) {
+    const hrMax = (sex === 'female') ? 206 - (0.88 * (age ?? 35)) : 208 - (0.7 * (age ?? 35));
+    vo2 = 15.3 * (hrMax / restingHR);
+  }
+  // Tier 3: No data → return identity
+  if (!vo2) return 1.0;
+  // Relative intensity: fraction of user's max (1 MET = 3.5 ml/kg/min)
+  const relInt = Math.min(1.0, (activityMET * 3.5) / vo2);
+  if (relInt > 0.85) return 1.5;
+  if (relInt > 0.70) return 1.3;
+  if (relInt > 0.55) return 1.0;
+  if (relInt > 0.40) return 0.80;
+  return 0.65;
+}
