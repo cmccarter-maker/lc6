@@ -101,6 +101,50 @@ const PHY040_WATTS_PER_POINT = 30;
  * Per Cardinal Rule #16: this is NOT EngineOutput — it's a function-local type.
  * Future engine integration session maps this onto EngineOutput.
  */
+// ============================================================================
+// PHY-069 HELPERS — ratified Session 10
+// ============================================================================
+
+/**
+ * Insensible evaporative heat loss through skin (E_diff).
+ * ISO 7730:2005 §C.2 / Fanger 1970 eq. 3.
+ *
+ * E_diff = 3.05e-3 * (5733 - 6.99*(M-W) - P_a) [W/m²]
+ *
+ * Constants from Fanger 1970 thermal comfort study (N=1300).
+ */
+function computeEdiff(M_Wm2: number, W_Wm2: number, P_a_Pa: number, bsa: number): number {
+  const ediff_Wm2 = 3.05e-3 * (5733 - 6.99 * (M_Wm2 - W_Wm2) - P_a_Pa);
+  return Math.max(0, ediff_Wm2 * bsa);
+}
+
+/**
+ * Cutaneous tissue thermal resistance as a function of CIVD vasoconstriction.
+ * Interpolates between dilated (Burton 1935, Hardy 1938) and constricted
+ * (Fanger 1970, Parsons 2003) endpoints using the Flouris & Cheung 2008
+ * CIVD curve from civdProtectionFactor.
+ *
+ * @param civd CIVD protection factor [0,1]: 0=dilated, 1=fully constricted
+ * @returns R_tissue in m²K/W
+ */
+function computeRtissueFromCIVD(civd: number): number {
+  const CLO_DILATED = 0.30;     // Burton 1935, Hardy 1938
+  const CLO_CONSTRICTED = 0.80; // Fanger 1970, Parsons 2003
+  const clampedCivd = Math.max(0, Math.min(1, civd));
+  const tissueCloEffective = CLO_DILATED + clampedCivd * (CLO_CONSTRICTED - CLO_DILATED);
+  return tissueCloEffective * 0.155; // clo → m²K/W
+}
+
+/**
+ * Saturation vapor pressure of water (Magnus formula).
+ * Returns Pa for use in ISO 7730 E_diff formula.
+ *
+ * @param T_C temperature in °C
+ */
+function pSatPa(T_C: number): number {
+  return 610.78 * Math.exp(17.27 * T_C / (T_C + 237.3));
+}
+
 export interface IntermittentMoistureResult {
   trapped: number;
   sessionMR: number;
@@ -112,7 +156,7 @@ export interface IntermittentMoistureResult {
   fatigue: number;
   perCycleFatigue: number[] | null;
   perPhaseMR: Array<{phase:string; cycle:number; mr:number; trapped:number}> | null;
-  perPhaseHL: Array<{phase:string; cycle:number; hl:number; hlWatts:number; fatigue:number}> | null;
+  perPhaseHL: Array<{phase:string; cycle:number; hl:number; hlWatts:number; residualW:number; fatigue:number}> | null;
   perCycleHeatStorage: number[] | null;
   peakHeatBalanceW: number;
   peakHeatBalanceDirection: string;
@@ -494,16 +538,18 @@ export function calcIntermittentMoisture(
     const _perCycleMR: number[] = [];
     const _perCycleHL: number[] = [];
     const _perPhaseMR: Array<{phase:string; cycle:number; mr:number; trapped:number}> = [];
-    const _perPhaseHL: Array<{phase:string; cycle:number; hl:number; hlWatts:number; fatigue:number}> = [];
+    const _perPhaseHL: Array<{phase:string; cycle:number; hl:number; hlWatts:number; residualW:number; fatigue:number}> = [];
     let _fatigue = 0;
     const _perCycleFatigue: number[] = [];
 
     // === ENERGY BALANCE ENGINE ===
     const _TambC = (tempF - 32) * 5 / 9;
+    // PHY-069: Ambient vapor pressure in Pa for E_diff formula
+    const _Pa_ambient = pSatPa(_TambC) * (humidity / 100);
     const _windMs = windMph * 0.44704;
     const _bodyFatPct = fitnessProfile?.bodyFatPct ?? 20;
     const _tissueCLO = computeTissueCLO(_bodyFatPct);
-    const _Rtissue = _tissueCLO * 0.155;
+    // PHY-069: _Rtissue is now computed per-cycle from CIVD state (see inside cycle loop)
     const _totalCLO = (totalCLOoverride != null && totalCLOoverride > 0) ? totalCLOoverride : activityCLO(activity);
     let _gearCLO: number | null = null;
     if (gearItems && gearItems.length > 0) {
@@ -593,6 +639,9 @@ export function calcIntermittentMoisture(
       const _Rclo = _totalCLO * 0.155 * _cloDeg;
       const _runCLOdyn = computeEffectiveCLO(_baseCLO, _cycleMET, _phy049ShellWR, windMph, _layers.length);
       const coreTemp = estimateCoreTemp(LC5_T_CORE_BASE, _cumStorageWmin, _bodyMassKg);
+      // PHY-069: Compute CIVD-responsive tissue resistance for this cycle
+      const _civdCycle = civdProtectionFactor(coreTemp);
+      const _Rtissue = computeRtissueFromCIVD(_civdCycle);
 
       // === RUN PHASE: Energy Balance ===
       const _hcRun = 8.3 * Math.sqrt(Math.max(0.5, _windMs + _cycleSpeedWMs));
@@ -605,7 +654,10 @@ export function calcIntermittentMoisture(
       const _QradRun = computeRadiativeHeatLoss(_TsurfRun, _TambC, _bsa);
       // DEC-024 site 1: _humFrac → _humFrac*100
       const _respRun = computeRespiratoryHeatLoss(_cycleMET, _TambC, _humFrac * 100, _bodyMassKg, _faceCover);
-      const _QpassRun = _QconvRun + _QradRun + _respRun.total + 7;
+      // PHY-069: E_diff per ISO 7730 (was flat +7W)
+      const _M_Wm2_run = _cycleMET * 58.2;
+      const _ediffRun = computeEdiff(_M_Wm2_run, 0, _Pa_ambient, _bsa);
+      const _QpassRun = _QconvRun + _QradRun + _respRun.total + _ediffRun;
       const _residRun = _Qmet - _QpassRun;
       const _eReqRun = Math.max(0, _residRun);
       const _emaxRun = computeEmax(_TskRun, _TambC, _humFrac * 100, _windMs + _cycleSpeedWMs, _effectiveIm || 0.089, _totalCLO, _bsa);
@@ -633,7 +685,10 @@ export function calcIntermittentMoisture(
         const _QrL = computeRadiativeHeatLoss(_TsL, _TambC, _bsa);
         // DEC-024 site 2: _humFrac → _humFrac*100
         const _respL = computeRespiratoryHeatLoss(_METeff, _TambC, _humFrac * 100, _bodyMassKg, _faceCover);
-        const _QpL = _QcL + _QrL + _respL.total + 7;
+        // PHY-069: E_diff per ISO 7730 (was flat +7W)
+        const _M_Wm2_lift = _METeff * 58.2;
+        const _ediffLift = computeEdiff(_M_Wm2_lift, 0, _Pa_ambient, _bsa);
+        const _QpL = _QcL + _QrL + _respL.total + _ediffLift;
         const _resL = _QmL - _QpL;
         const _eReqL = Math.max(0, _resL);
         const _emaxL = computeEmax(_TskL, _TambC, _humFrac * 100, _windMs, _effectiveIm || 0.089, _totalCLO, _bsa);
@@ -827,7 +882,7 @@ export function calcIntermittentMoisture(
       const _runHLscore = Math.min(10, _runHLwatts / PHY040_WATTS_PER_POINT); // dead code preserved
       const _coreNow = estimateCoreTemp(LC5_T_CORE_BASE, _cumStorageWmin, _bodyMassKg);
       const _hlrRunScore = computeHLR(_residDynRun, _coreNow, _TambC, sat);
-      _perPhaseHL.push({ phase: 'run', cycle: c, hl: Math.round(_hlrRunScore * 1000) / 1000, hlWatts: Math.round(_runHLwatts), fatigue: Math.round(_fatigue * 1000) / 1000 });
+      _perPhaseHL.push({ phase: 'run', cycle: c, hl: Math.round(_hlrRunScore * 1000) / 1000, hlWatts: Math.round(_runHLwatts), residualW: Math.round(_runNetHeat), fatigue: Math.round(_fatigue * 1000) / 1000 });
 
       // HLR sawtooth: lift phase
       const _liftEndMET = _METlift + _cycleEpoc.aFast * Math.exp(-(_liftMin - 0.5) / _cycleEpoc.tauFast) + _cycleEpoc.aSlow * Math.exp(-(_liftMin - 0.5) / _cycleEpoc.tauSlow);
@@ -848,7 +903,7 @@ export function calcIntermittentMoisture(
       const _hlrScore = computeHLR(_residDynLift, _coreNow, _TambC, sat);
       const _liftMR = Math.min(10, Math.round(computePerceivedMR(_layers) * 10) / 10);
       _perPhaseMR.push({ phase: 'lift', cycle: c, mr: _liftMR, trapped: Math.round(cumMoisture * 10000) / 10000 });
-      _perPhaseHL.push({ phase: 'lift', cycle: c, hl: Math.round(_hlrScore * 1000) / 1000, hlWatts: Math.round(_liftHLwatts), fatigue: Math.round(_fatigue * 1000) / 1000 });
+      _perPhaseHL.push({ phase: 'lift', cycle: c, hl: Math.round(_hlrScore * 1000) / 1000, hlWatts: Math.round(_liftHLwatts), residualW: Math.round(_liftStorage / Math.max(1, _liftMin)), fatigue: Math.round(_fatigue * 1000) / 1000 });
 
       // PHY-034: fatigue accumulation
       const _cycleDurF = _runMin + _liftMin;

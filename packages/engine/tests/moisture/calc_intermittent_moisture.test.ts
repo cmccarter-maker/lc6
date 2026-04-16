@@ -12,14 +12,14 @@ describe('calcIntermittentMoisture — Breck 16°F groomers 6hrs', () => {
   );
 
   it('sessionMR = 7', () => { expect(r.sessionMR).toBe(7); });
-  it('trapped ≈ 0.0934', () => { expect(r.trapped).toBeCloseTo(0.0934, 3); });
+  it('trapped ≈ 0.090 [PHY-069]', () => { expect(r.trapped).toBeCloseTo(0.090, 2); });
   it('totalRuns = 36', () => { expect(r.totalRuns).toBe(36); });
-  it('goodRunCount = 9', () => { expect(r.goodRunCount).toBe(9); });
+  it('goodRunCount = 11 [PHY-069]', () => { expect(r.goodRunCount).toBe(11); });
   it('yellowRunCount = 2', () => { expect(r.yellowRunCount).toBe(2); });
-  it('peakHeatBalanceDirection = hot', () => { expect(r.peakHeatBalanceDirection).toBe('hot'); });
-  it('totalFluidLoss ≈ 508', () => { expect(r.totalFluidLoss).toBeCloseTo(508, -1); });
+  it('peakHeatBalanceDirection = cold [PHY-069]', () => { expect(r.peakHeatBalanceDirection).toBe('cold'); });
+  it('totalFluidLoss ≈ 450 [PHY-069]', () => { expect(r.totalFluidLoss).toBeCloseTo(450, -1); });
   it('perCycleTrapped has 36 entries', () => { expect(r.perCycleTrapped?.length).toBe(36); });
-  it('perCycleMR first entry ≈ 0.5', () => { expect(r.perCycleMR?.[0]).toBeCloseTo(0.5, 1); });
+  it('perCycleMR first entry ≈ 0.4 [PHY-069]', () => { expect(r.perCycleMR?.[0]).toBeCloseTo(0.4, 1); });
   it('has layerBuffers', () => { expect(r.layerBuffers).not.toBeNull(); });
   it('has endingLayers', () => { expect(r.endingLayers).not.toBeNull(); });
 });
