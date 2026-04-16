@@ -5,19 +5,6 @@
 import { describe, it, expect } from 'vitest';
 import { calcIntermittentMoisture } from '../../src/moisture/calc_intermittent_moisture.js';
 
-describe('calcIntermittentMoisture — β1 stubs for non-cyclic paths', () => {
-  it('throws for steady-state activity (bouldering)', () => {
-    expect(() => calcIntermittentMoisture(
-      'bouldering', 50, 50, 5, 2, 'male', 170, 1.0, 0.15, null, null, false, 0, false, 1.0, null, null, 'moderate', null, 3, null, 0, null, null, null, 0, null,
-    )).toThrow('Session 9c TODO: steady-state path not yet ported');
-  });
-
-  it('throws for linear activity (snowshoeing)', () => {
-    expect(() => calcIntermittentMoisture(
-      'snowshoeing', 20, 40, 5, 3, 'male', 170, 1.0, 0.089, null, null, false, 0, false, 1.0, null, null, 'moderate', null, 3, null, 0, null, null, null, 0, null,
-    )).toThrow('Session 9c TODO: linear path not yet ported');
-  });
-});
 
 describe('calcIntermittentMoisture — Breck 16°F groomers 6hrs', () => {
   const r = calcIntermittentMoisture(
@@ -68,4 +55,41 @@ describe('calcIntermittentMoisture — hot road cycling flat 85°F 2hrs', () => 
   it('trapped ≈ 0.0324', () => { expect(r.trapped).toBeCloseTo(0.01019, 3); });
   it('totalRuns = 2', () => { expect(r.totalRuns).toBe(2); });
   it('peakHeatBalanceDirection = hot', () => { expect(r.peakHeatBalanceDirection).toBe('hot'); });
+});
+
+describe('calcIntermittentMoisture — bouldering 50°F 2hrs (steady-state)', () => {
+  const r = calcIntermittentMoisture(
+    'bouldering', 50, 50, 5, 2, 'male', 170, 1.0, 0.15, null, null, false, 0, false, 1.0, null, null, 'moderate', null, 3, null, 0, null, null, null, 0, null,
+  );
+
+  it('sessionMR = 0.4', () => { expect(r.sessionMR).toBe(0.4); });
+  it('trapped ≈ 0.0130', () => { expect(r.trapped).toBeCloseTo(0.0130, 3); });
+  it('has perStepMR (steady-state output)', () => { expect(r.perStepMR?.length).toBe(20); });
+  it('no perCycleTrapped (not cyclic)', () => { expect(r.perCycleTrapped).toBeNull(); });
+});
+
+describe('calcIntermittentMoisture — camping 40°F 8hrs (steady-state)', () => {
+  const r = calcIntermittentMoisture(
+    'camping', 40, 50, 3, 8, 'male', 170, 1.0, 0.15, null, null, false, 0, false, 1.0, null, null, 'low', null, 3, null, 0, null, null, null, 0, null,
+  );
+
+  it('sessionMR = 0', () => { expect(r.sessionMR).toBe(0); });
+  it('trapped = 0', () => { expect(r.trapped).toBe(0); });
+});
+
+describe('calcIntermittentMoisture — snowshoeing 20°F 3hrs (linear)', () => {
+  it('does not throw (Session 9c removes β1 stub)', () => {
+    expect(() => calcIntermittentMoisture(
+      'snowshoeing', 20, 40, 5, 3, 'male', 170, 1.0, 0.089, null, null, false, 0, false, 1.0, null, null, 'moderate', null, 5, null, 0, null, null, null, 0, null,
+    )).not.toThrow();
+  });
+
+  it('returns valid sessionMR > 0', () => {
+    const r = calcIntermittentMoisture(
+      'snowshoeing', 20, 40, 5, 3, 'male', 170, 1.0, 0.089, null, null, false, 0, false, 1.0, null, null, 'moderate', null, 5, null, 0, null, null, null, 0, null,
+    );
+    expect(r.sessionMR).toBeGreaterThanOrEqual(0);
+    expect(r.trapped).toBeGreaterThanOrEqual(0);
+    expect(Number.isFinite(r.sessionMR)).toBe(true);
+  });
 });

@@ -181,3 +181,9 @@ export {
 } from './moisture/index.js';
 
 export type { IntermittentMoistureResult } from './moisture/index.js';
+
+// Session 9c
+export { sweatRate } from './moisture/index.js';
+export { elevTempAdj } from './heat_balance/index.js';
+export { calcBCPhasePercentages } from './activities/index.js';
+export type { BCPhasePercentages } from './activities/index.js';

@@ -51,3 +51,18 @@ export function altitudeFactors(elevFt: number | null | undefined): AltitudeFact
     convective: Math.max(0.70, Math.pow(pRatio, 0.5)),
   };
 }
+
+/**
+ * Elevation-based temperature lapse rate adjustment (°F).
+ *
+ * ~3.5°F per 1000 ft gained. Capped at -18°F max adjustment to prevent
+ * double-counting when weather data is already fetched at/near peak elevation.
+ *
+ * LC5 risk_functions.js lines 784-789.
+ *
+ * @param gainFt elevation gain in feet from base
+ * @returns temperature adjustment in °F (always ≤ 0)
+ */
+export function elevTempAdj(gainFt: number): number {
+  return Math.max(-18, -(gainFt / 1000) * 3.5);
+}

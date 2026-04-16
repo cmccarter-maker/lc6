@@ -105,3 +105,6 @@ export type { AltitudeFactorsResult } from './altitude.js';
 
 // Session 9b — metabolic efficiency
 export { getMetabolicEfficiency } from './metabolism.js';
+
+// Session 9c — lapse rate
+export { elevTempAdj } from './altitude.js';

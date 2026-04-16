@@ -29,3 +29,7 @@ export type {
 
 // Session 9b — wader evaporation floor
 export { waderEvapFloor } from './split_body.js';
+
+// Session 9c — BC phase percentages
+export { calcBCPhasePercentages } from './profiles.js';
+export type { BCPhasePercentages } from './profiles.js';

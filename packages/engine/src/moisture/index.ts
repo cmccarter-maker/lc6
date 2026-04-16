@@ -25,3 +25,6 @@ export {
 // Session 9b — calcIntermittentMoisture (THE single MR source of truth)
 export { calcIntermittentMoisture } from './calc_intermittent_moisture.js';
 export type { IntermittentMoistureResult } from './calc_intermittent_moisture.js';
+
+// Session 9c — standalone sweat rate
+export { sweatRate } from './sweat_rate.js';

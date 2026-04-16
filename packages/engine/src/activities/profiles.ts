@@ -260,3 +260,36 @@ export const GENERIC_GEAR_SCORES_BY_SLOT: Readonly<Record<string, GearSlotScores
   feet:       { breathability: 4, moisture: 3, windResist: 4, warmthRatio: 3, waterproof: 0 },
   head:       { breathability: 3, moisture: 2, windResist: 2, warmthRatio: 3, waterproof: 0 },
 };
+
+/**
+ * Compute backcountry ski phase percentages from vertical gain.
+ *
+ * Skinning rate: ~1500 ft/hr (standard uphilling pace).
+ * Transition: fixed 10 min summit stop.
+ * Descent rate: provided by caller (3000-4000 ft/hr depending on terrain).
+ *
+ * Returns null if verticalGainFt ≤ 0.
+ *
+ * LC5 risk_functions.js lines 1620-1631.
+ */
+export interface BCPhasePercentages {
+  skinning: number;
+  transition: number;
+  descent: number;
+}
+
+export function calcBCPhasePercentages(
+  verticalGainFt: number | null | undefined,
+  descentRateFtPerHr: number | null | undefined,
+): BCPhasePercentages | null {
+  if (!verticalGainFt || verticalGainFt <= 0) return null;
+  const skinningHrs = verticalGainFt / 1500;
+  const transitionHrs = 10 / 60;
+  const descentHrs = verticalGainFt / (descentRateFtPerHr ?? 4000);
+  const totalPhaseHrs = skinningHrs + transitionHrs + descentHrs;
+  return {
+    skinning: skinningHrs / totalPhaseHrs,
+    transition: transitionHrs / totalPhaseHrs,
+    descent: descentHrs / totalPhaseHrs,
+  };
+}
