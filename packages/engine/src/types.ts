@@ -555,7 +555,18 @@ export interface FitnessProfile {
 
 export type GearSlot =
   | "base" | "mid" | "insulative" | "shell"
-  | "footwear" | "headgear" | "handwear" | "legwear" | "neck";
+  | "footwear" | "headgear" | "handwear" | "legwear" | "neck"
+  | "sleeping_bag" | "sleeping_pad" | "immersion";  // PHY-GEAR-01 v2
+
+export type GearSubslot =
+  | "upper_base" | "upper_mid" | "upper_insulative" | "upper_shell"
+  | "lower_base" | "lower_pants" | "lower_insulative" | "lower_ski_shell"
+  | "lower_shell" | "lower_bike"
+  | "immersion_drysuit" | "immersion_wetsuit" | "immersion_wader"
+  | "footwear" | "headgear" | "handwear" | "neck"
+  | "sleeping_bag" | "sleeping_pad";
+
+export type FiberType = "synthetic" | "wool" | "cotton" | "down" | "blend";
 
 /**
  * Gear item for evaluate() input.
@@ -572,10 +583,16 @@ export interface EngineGearItem {
   wind_resistance?: number;
   waterproof?: number;
   breathability?: number;
-  fiber?: "synthetic" | "wool" | "cotton" | "down" | "blend";
+  fiber?: FiberType;
   layer_capacity_ml?: number;
   wicking?: number;
   spec_confidence?: number;
+  subslot?: GearSubslot;
+  thickness_mm?: string;
+  comfort_rating_f?: number;
+  lower_limit_f?: number;
+  fill_power?: number;
+  r_value?: number;
 }
 
 export interface GearEnsemble {
