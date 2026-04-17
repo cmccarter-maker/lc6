@@ -55,9 +55,13 @@ export interface EnumerateOptions {
  * Pure function, no side effects.
  */
 export function enumerateCandidates(
-  catalog: EngineGearItem[],
+  rawCatalog: EngineGearItem[],
   options: EnumerateOptions,
 ): GearEnsemble[] {
+  // PHY-GEAR-01 v2 §3.7: exclude immersion gear (drysuit, wetsuit) from clothing
+  // ensemble enumeration. Immersion physics deferred to PHY-IMMERSION-01.
+  const catalog = rawCatalog.filter(item => item.slot !== 'immersion');
+
   const maxCandidates = options.maxCandidates ?? MAX_CANDIDATES;
 
   // ── Step 1: Determine required slots ──────────────────

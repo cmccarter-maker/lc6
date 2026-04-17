@@ -26,75 +26,13 @@ import { evaluate } from '../../src/evaluate.js';
 import type { EngineInput, EngineOutput, GearEnsemble } from '../../src/types.js';
 
 // ──────────────────────────────────────────────────────────────────────
-// Shared gear DB — covers full range from lightweight summer to heavy winter
-// Copy of the skiing gear DB with additional lightweight options
+// Real gear DB (PHY-GEAR-01 v2 — Session 11)
+// Replaces Session 10's embedded ~50-item UNIVERSAL_GEAR_DB with the full
+// 1,627-product gear.js. This is the unlock that takes matrix 12/19 -> 19/19.
 // ──────────────────────────────────────────────────────────────────────
 
-const UNIVERSAL_GEAR_DB: RawGearDB = {
-  upper: {
-    base_layer: [
-      {brand:"Patagonia",model:"Cap Cool Daily",price:45,tempRange:[50,95],breathability:10,windResist:1,weight:"ultralight",packable:true,warmthRatio:2,waterproof:0,moisture:10,fit:{running:10,hiking:9,cycling:9,golf:9}},
-      {brand:"Patagonia",model:"Capilene Cool Merino",price:69,tempRange:[30,70],breathability:9,windResist:2,weight:"ultralight",packable:true,warmthRatio:5,waterproof:0,moisture:9,fit:{hiking:9,skiing:7,running:8,cycling:8}},
-      {brand:"Smartwool",model:"Merino 250 Base Layer",price:100,tempRange:[0,45],breathability:7,windResist:3,weight:"light",packable:true,warmthRatio:8,waterproof:0,moisture:9,fit:{skiing:10,snowboarding:10,hiking:7,snowshoeing:10,fishing:9,cross_country_ski:9}},
-      {brand:"Icebreaker",model:"200 Oasis LS Crewe",price:90,tempRange:[5,50],breathability:8,windResist:3,weight:"light",packable:true,warmthRatio:7,waterproof:0,moisture:9,fit:{hiking:8,skiing:9,snowboarding:8,snowshoeing:9,fishing:8,cross_country_ski:8}},
-      {brand:"Arc'teryx",model:"Motus AR Crew LS",price:85,tempRange:[25,65],breathability:10,windResist:2,weight:"ultralight",packable:true,warmthRatio:5,waterproof:0,moisture:10,fit:{skiing:8,snowboarding:7,hiking:9,running:9,cross_country_ski:10}},
-    ],
-    mid_layer: [
-      {brand:"Patagonia",model:"R1 Air Full-Zip Hoody",price:169,tempRange:[20,50],breathability:10,windResist:4,weight:"light",packable:true,warmthRatio:7,waterproof:0,moisture:8,fit:{skiing:9,climbing:10,hiking:8,cross_country_ski:9}},
-      {brand:"Arc'teryx",model:"Kyanite LT Hoody",price:175,tempRange:[15,45],breathability:8,windResist:5,weight:"mid",packable:false,warmthRatio:8,waterproof:0,moisture:7,fit:{skiing:9,snowboarding:9,snowshoeing:9,fishing:8}},
-      {brand:"Norrøna",model:"Falketind Warm1 Stretch",price:189,tempRange:[15,45],breathability:9,windResist:5,weight:"light",packable:true,warmthRatio:8,waterproof:0,moisture:8,fit:{skiing:10,snowshoeing:9,fishing:8}},
-      {brand:"Arc'teryx",model:"Cerium LT Hoody",price:380,tempRange:[-10,35],breathability:5,windResist:6,weight:"ultralight",packable:true,warmthRatio:9,waterproof:0,moisture:3,fit:{skiing:9,snowboarding:8,snowshoeing:9,fishing:9}},
-      {brand:"Patagonia",model:"Nano Puff Hoody",price:279,tempRange:[0,45],breathability:7,windResist:7,weight:"light",packable:true,warmthRatio:8,waterproof:1,moisture:5,fit:{skiing:8,snowboarding:8,hiking:8,fishing:8}},
-      {brand:"Rab",model:"Microlight Alpine",price:300,tempRange:[-15,30],breathability:5,windResist:7,weight:"light",packable:true,warmthRatio:9,waterproof:1,moisture:3,fit:{skiing:9,fishing:9}},
-      {brand:"Nike",model:"Dri-FIT Half-Zip",price:60,tempRange:[40,80],breathability:10,windResist:2,weight:"ultralight",packable:true,warmthRatio:3,waterproof:0,moisture:10,fit:{running:9,cycling:8,road_cycling:8,golf:8,day_hike:7,hiking:7}},
-      {brand:"Patagonia",model:"Capilene Air Hoodie",price:179,tempRange:[30,70],breathability:9,windResist:3,weight:"light",packable:true,warmthRatio:5,waterproof:0,moisture:9,fit:{hiking:9,day_hike:9,running:7,cycling:7,road_cycling:7,golf:7,cross_country_ski:8}},
-    ],
-    shell: [
-      {brand:"Patagonia",model:"Houdini Windshell",price:119,tempRange:[40,80],breathability:10,windResist:7,weight:"ultralight",packable:true,warmthRatio:1,waterproof:1,moisture:5,fit:{running:9,cycling:9,hiking:8}},
-      {brand:"Arc'teryx",model:"Beta LT Jacket",price:450,tempRange:[-20,60],breathability:8,windResist:10,weight:"light",packable:true,warmthRatio:1,waterproof:3,moisture:3,fit:{skiing:10,snowboarding:9,hiking:9,snowshoeing:9,fishing:8,cross_country_ski:9,day_hike:9}},
-      {brand:"Norrøna",model:"Falketind Gore-Tex",price:500,tempRange:[-15,55],breathability:9,windResist:10,weight:"light",packable:true,warmthRatio:1,waterproof:3,moisture:3,fit:{skiing:10,snowboarding:9,snowshoeing:10,fishing:9,cross_country_ski:9,day_hike:9}},
-      {brand:"FootJoy",model:"HydroLite Rain Shell",price:150,tempRange:[40,85],breathability:7,windResist:8,weight:"light",packable:true,warmthRatio:1,waterproof:3,moisture:4,fit:{golf:10,hiking:6,day_hike:6}},
-    ],
-  },
-  lower: {
-    base_layer: [
-      {brand:"Patagonia",model:"Cap Cool Trail Tights",price:79,tempRange:[45,85],breathability:10,windResist:1,weight:"ultralight",warmthRatio:3,waterproof:0,moisture:10,fit:{running:10,hiking:9,cycling:9}},
-      {brand:"Smartwool",model:"Merino 250 Bottom",price:100,tempRange:[0,40],breathability:7,windResist:2,weight:"light",warmthRatio:8,waterproof:0,moisture:9,fit:{skiing:10,snowboarding:10,snowshoeing:10,fishing:9,cross_country_ski:9}},
-      {brand:"Patagonia",model:"Capilene MW Bottoms",price:59,tempRange:[10,45],breathability:9,windResist:2,weight:"ultralight",warmthRatio:6,waterproof:0,moisture:9,fit:{skiing:8,hiking:8,cross_country_ski:9,day_hike:8}},
-      {brand:"Icebreaker",model:"200 Oasis Leggings",price:85,tempRange:[5,45],breathability:8,windResist:2,weight:"light",warmthRatio:7,waterproof:0,moisture:9,fit:{skiing:9,snowboarding:9,snowshoeing:9,fishing:8,cross_country_ski:8}},
-      {brand:"Arc'teryx",model:"Sabre AR Pant",price:500,tempRange:[-20,40],breathability:7,windResist:10,weight:"mid",warmthRatio:5,waterproof:3,moisture:3,fit:{skiing:10,snowboarding:9,snowshoeing:9,fishing:9}},
-      {brand:"The North Face",model:"Freedom Insulated Pant",price:200,tempRange:[-15,35],breathability:5,windResist:9,weight:"mid",warmthRatio:7,waterproof:3,moisture:3,fit:{skiing:9,snowboarding:10,snowshoeing:8,fishing:8}},
-      {brand:"Lululemon",model:"ABC Jogger",price:128,tempRange:[45,85],breathability:8,windResist:3,weight:"light",warmthRatio:3,waterproof:0,moisture:7,fit:{golf:9,hiking:7,day_hike:7,running:6}},
-      {brand:"Rapha",model:"Core Cargo Bib Shorts",price:150,tempRange:[55,95],breathability:10,windResist:1,weight:"ultralight",warmthRatio:1,waterproof:0,moisture:10,fit:{cycling:10,road_cycling:10}},
-      {brand:"Nike",model:"Dri-FIT Challenger Shorts",price:50,tempRange:[50,95],breathability:10,windResist:1,weight:"ultralight",warmthRatio:1,waterproof:0,moisture:10,fit:{running:10,hiking:7,golf:7}},
-    ],
-  },
-  footwear: [
-    {brand:"Salomon",model:"S/Pro MV 100",price:650,tempRange:[-20,35],breathability:3,windResist:9,weight:"heavy",warmthRatio:6,waterproof:3,moisture:3,fit:{skiing:10}},
-    {brand:"Scarpa",model:"F1 LT",price:700,tempRange:[-20,30],breathability:4,windResist:9,weight:"heavy",warmthRatio:7,waterproof:3,moisture:3,fit:{skiing:9,snowboarding:8,snowshoeing:9}},
-    {brand:"Merrell",model:"Moab 3",price:120,tempRange:[30,90],breathability:7,windResist:5,weight:"mid",warmthRatio:4,waterproof:2,moisture:6,fit:{hiking:10,day_hike:10,fishing:8,golf:7}},
-    {brand:"Hoka",model:"Clifton 9",price:145,tempRange:[35,95],breathability:8,windResist:3,weight:"light",warmthRatio:3,waterproof:0,moisture:7,fit:{running:10,cycling:5}},
-    {brand:"Salomon",model:"RC 10 Prolink XC Boot",price:300,tempRange:[-5,35],breathability:4,windResist:8,weight:"mid",warmthRatio:5,waterproof:2,moisture:5,fit:{cross_country_ski:10}},
-    {brand:"MSR",model:"Lightning Ascent Boot Combo",price:300,tempRange:[-10,35],breathability:3,windResist:8,weight:"heavy",warmthRatio:7,waterproof:3,moisture:3,fit:{snowshoeing:10,hiking:6}},
-    {brand:"Simms",model:"Freestone Wading Boot",price:200,tempRange:[-15,75],breathability:2,windResist:8,weight:"heavy",warmthRatio:5,waterproof:3,moisture:3,fit:{fishing:10}},
-    {brand:"ECCO",model:"Biom G5 Golf Shoe",price:250,tempRange:[40,95],breathability:6,windResist:5,weight:"mid",warmthRatio:3,waterproof:2,moisture:6,fit:{golf:10,hiking:5}},
-    {brand:"Specialized",model:"Torch 1.0 Road Shoe",price:150,tempRange:[40,95],breathability:8,windResist:3,weight:"light",warmthRatio:2,waterproof:0,moisture:7,fit:{cycling:10,road_cycling:10}},
-  ],
-  headgear: [
-    {brand:"Smith",model:"Vantage MIPS Helmet",price:280,tempRange:[-20,45],breathability:5,windResist:9,weight:"mid",warmthRatio:5,waterproof:1,moisture:4,fit:{skiing:10,snowboarding:10}},
-    {brand:"Buff",model:"Merino Wool Beanie",price:30,tempRange:[-10,45],breathability:6,windResist:4,weight:"ultralight",warmthRatio:6,waterproof:0,moisture:7,fit:{hiking:9,snowshoeing:9,fishing:9,cross_country_ski:9,day_hike:8}},
-    {brand:"Nike",model:"Dri-FIT Running Cap",price:25,tempRange:[40,95],breathability:9,windResist:2,weight:"ultralight",warmthRatio:2,waterproof:0,moisture:9,fit:{running:10,golf:8,hiking:6}},
-    {brand:"Bontrager",model:"Helmet",price:130,tempRange:[30,95],breathability:8,windResist:2,weight:"light",warmthRatio:2,waterproof:0,moisture:7,fit:{cycling:10,road_cycling:10}},
-  ],
-  handwear: [
-    {brand:"Outdoor Research",model:"Stormtracker Gloves",price:90,tempRange:[5,45],breathability:6,windResist:8,weight:"light",warmthRatio:6,waterproof:2,moisture:5,fit:{skiing:9,snowboarding:9,hiking:7,snowshoeing:9}},
-    {brand:"Hestra",model:"Fall Line Gloves",price:180,tempRange:[-15,25],breathability:4,windResist:10,weight:"mid",warmthRatio:8,waterproof:3,moisture:3,fit:{skiing:10,snowboarding:10,snowshoeing:9,fishing:9}},
-    {brand:"Black Diamond",model:"Wind Hood Gridtech Gloves",price:40,tempRange:[35,65],breathability:8,windResist:5,weight:"light",warmthRatio:3,waterproof:0,moisture:7,fit:{running:8,cycling:8,hiking:8,day_hike:8,cross_country_ski:7,road_cycling:8}},
-    {brand:"FootJoy",model:"WeatherSof Golf Glove",price:20,tempRange:[40,95],breathability:6,windResist:3,weight:"ultralight",warmthRatio:2,waterproof:0,moisture:6,fit:{golf:10}},
-    {brand:"Pearl Izumi",model:"Summit Gel Glove",price:35,tempRange:[45,90],breathability:8,windResist:4,weight:"ultralight",warmthRatio:2,waterproof:0,moisture:7,fit:{cycling:9,road_cycling:10,running:6}},
-    {brand:"OR",model:"Backstop Sensor Gloves",price:45,tempRange:[25,60],breathability:7,windResist:7,weight:"light",warmthRatio:5,waterproof:1,moisture:6,fit:{running:8,hiking:8,day_hike:8,fishing:8,cross_country_ski:8}},
-  ],
-};
+// @ts-expect-error — reference/lc5_gear.js is a JS module without types
+import { G as UNIVERSAL_GEAR_DB } from '../../reference/lc5_gear.js';
 
 // ──────────────────────────────────────────────────────────────────────
 // Scenario catalog
