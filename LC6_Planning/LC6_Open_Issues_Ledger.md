@@ -72,3 +72,55 @@ Sweep gear.js for misclassified products: insulated pants in lower.ski_pants
 that belong in lower.insulation; wader products in 'gear' bucket that should
 move to a dedicated wader bucket with thermal attributes; etc.
 
+
+
+## Session 12 additions (PHY-HUMID-01 ratification, 2026-04-17)
+
+### OQ-H3-HUMID-LOW-MR — H3 warm/humid running MR anomaly
+**Status:** DIAGNOSED. Fix ratified as PHY-HUMID-01 v1. Pending Session 13+ implementation.
+
+Adversarial matrix H3 (75°F / 90%RH / 1.5hr running) produced MR=0.7 against real
+1,627-product gear catalog. Hand-computed physics showed E_req ≈ 600W, E_max ≈ 224W,
+w_req ≈ 2.7 — deeply uncompensable, should produce ~400g accumulation. Root cause:
+hardcoded _tDewMicro = 29°C + wrong gating of _excessHr through cold-weather
+condensation severity. Ratified fix: PHY-HUMID-01 v1.
+
+### PHY-SWEAT-UNIFICATION — Replace rawTempMul staircase with Gagge energy balance
+**Status:** Raised Session 12. Priority: Medium (fudge factor removal).
+
+`phaseSweatRate` uses a 5-step temperature multiplier staircase (line 453 of
+calc_intermittent_moisture.ts). No citation. The running branch already uses
+Gagge energy balance via computeSweatRate — this spec extends that physics path
+to all activity phases (lift, steady, fishing, golf, camping).
+
+### PHY-GRADE-01 — Minetti GAP replacement for _gradeMul
+**Status:** Raised Session 12. Priority: Low.
+
+4-step staircase at line 377 for grade metabolic multiplier. Minetti 2002
+Journal of Applied Physiology provides derived polynomial for gradient running
+cost. Audit required to confirm whether partially implemented elsewhere
+(memory note: "PHY-064: Naismith-Langmuir (walking), Minetti GAP (running)").
+
+### PHY-HUMID-VENT-REWRITE — _ventHum staircase to VPD-derived effectiveness
+**Status:** Raised Session 12. Priority: Low.
+
+3-step staircase at line 825 for venting humidity factor. Replace with
+physics-derived:
+_ventEffectiveness = max(0, 1 - p_amb_eff / p_micro_pre_vent)
+
+### PHY-HUMID-HUMMUL-CAL — Empirical humMul derivation
+**Status:** Raised Session 12. Priority: Low.
+
+humMul (line 455): `1 + max(H-40, 0)/100 × 0.8`. Physiologically grounded
+(Nielsen & Endrusick 1990 compensatory sweat) but 40% knee and 0.8 slope are
+calibration. Empirical derivation requires controlled compensatory-sweat-rate
+experiments vs ambient RH.
+
+### PHY-HUMID-EXCESS-CAL — Validate _excessRetention 0.10 skin-diffusion coefficient
+**Status:** Raised Session 12. Priority: Medium.
+
+PHY-HUMID-01 introduces `_excessRetention = 1.0 - _ambientMargin × 0.10`.
+The 0.10 coefficient represents skin-level diffusion escape of uncompensable
+sweat. Empirical validation via wet-skin vapor transport experiments
+(controlled RH, vapor pressure gradient measurements, sweat accumulation
+gravimetric tracking).

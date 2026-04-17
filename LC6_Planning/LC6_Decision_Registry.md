@@ -38,3 +38,42 @@ confidence axis, and immersion gear captured inert.
 
 **Open question raised:** OQ-REGIONAL-MR (high priority, blocks PHY-INFOGRAPHIC-01)
 
+
+
+## DEC-PHY-HUMID-01 — Physics-Derived Moisture Accumulation in Warm/Humid Conditions
+**Status:** RATIFIED and PENDING IMPLEMENTATION
+**Date:** 2026-04-17 (Session 12)
+**Spec:** LC6_Planning/specs/PHY-HUMID-01_Spec_v1_RATIFIED.md
+**Implementation target:** Session 13 or later
+
+**Decision:** Replace hardcoded cold-weather reference temperatures in the per-layer
+condensation model with Magnus-derived physics values. Add uncompensable excess sweat
+retention via skin/ambient vapor pressure ratio. Delete dryAirBonus, _localDryBonus,
+and humidityFloorFactor fudge factors — VPD ratio already captures the dry-air
+advantage via physics, and humidityFloorFactor is redundant with vpdRatio.
+
+**Diagnostic finding:** Adversarial matrix scenario H3 (75°F / 90% RH / 1.5hr running)
+produced MR=0.7 against real 1,627-product gear catalog. Hand-computation shows
+E_req ≈ 600W, E_max ≈ 224W, w_req ≈ 2.7 — deeply uncompensable. Model correctly
+computed _excessHr ≈ 270 g/hr, but cold-weather condensation placement logic
+(_tDewMicro = 29°C hardcoded) suppressed retention to 2.8% at H3's warm ambient.
+97% of physically-real excess sweat disappeared from the moisture model.
+
+**Ratification path (accelerated):** draft v0 produced and ratified same session (12)
+per Christian's explicit direction. Five open questions resolved at ratification per
+spec's recommended resolutions (§11). No code changes this session — implementation
+deferred to Session 13 or later.
+
+**Cardinal Rules preserved:**
+- #1: dryAirBonus, _localDryBonus, humidityFloorFactor REMOVED as fudge factors.
+  _excessRetention 0.10 coefficient flagged as latent calibration (PHY-HUMID-EXCESS-CAL).
+- #8: thermal engine locked; no code changes this session.
+- #11: no code without ratified spec.
+- #16: EngineOutput contract unchanged.
+
+**Follow-up specs raised:**
+- PHY-SWEAT-UNIFICATION (replace rawTempMul staircase with Gagge)
+- PHY-GRADE-01 (Minetti GAP replacement for _gradeMul)
+- PHY-HUMID-VENT-REWRITE (_ventHum physics replacement)
+- PHY-HUMID-HUMMUL-CAL (empirical humMul derivation)
+- PHY-HUMID-EXCESS-CAL (empirical _excessRetention validation)
