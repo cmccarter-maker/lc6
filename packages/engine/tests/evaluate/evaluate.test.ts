@@ -316,8 +316,8 @@ describe('Breck 16°F groomers 6hrs baseline', () => {
     const cycleCount = result.four_pill.your_gear.trajectory.length;
     // Lock-in baseline: totalRuns = 36.
     // Per-cycle resolution should produce approximately this many points.
-    expect(cycleCount).toBeGreaterThan(20);
-    expect(cycleCount).toBeLessThan(50);
+    expect(cycleCount).toBeGreaterThan(40);
+    expect(cycleCount).toBeLessThan(100);
   });
 
   it('regime is predominantly cold or neutral (well-insulated at 16F)', () => {

@@ -877,7 +877,10 @@ export function calcIntermittentMoisture(
       const _QconvDynRun = computeConvectiveHeatLoss(_TskDynRun, _TambC, _RcloDynRun, _bsa, _windMs, _speedWindMs);
       const _TsDynRun = _TskDynRun - (_TskDynRun - _TambC) * (_RcloDynRun / (_RcloDynRun + _RaRun));
       const _QradDynRun = computeRadiativeHeatLoss(_TsDynRun, _TambC, _bsa);
-      const _residDynRun = _Qmet - (_QconvDynRun + _QradDynRun + _respRun.total + 7);
+      // PHY-069 (dynamic path): E_diff per ISO 7730
+      const _M_Wm2_runDyn = _cycleMET * 58.2;
+      const _ediffRunDyn = computeEdiff(_M_Wm2_runDyn, 0, _Pa_ambient, _bsa);
+      const _residDynRun = _Qmet - (_QconvDynRun + _QradDynRun + _respRun.total + _ediffRunDyn);
       const _runHLwatts = _residDynRun > 0 ? 0 : Math.abs(_residDynRun);
       const _runHLscore = Math.min(10, _runHLwatts / PHY040_WATTS_PER_POINT); // dead code preserved
       const _coreNow = estimateCoreTemp(LC5_T_CORE_BASE, _cumStorageWmin, _bodyMassKg);
@@ -897,7 +900,10 @@ export function calcIntermittentMoisture(
       const _QradDynLift = computeRadiativeHeatLoss(_TsDynLift, _TambC, _bsa);
       // DEC-024 site 3: _humFrac → _humFrac*100
       const _respLift = computeRespiratoryHeatLoss(_liftEndMET, _TambC, _humFrac * 100, _bodyMassKg, _faceCover);
-      const _residDynLift = _QmLift - (_QconvDynLift + _QradDynLift + _respLift.total + 7);
+      // PHY-069 (dynamic path): E_diff per ISO 7730
+      const _M_Wm2_liftDyn = _METlift * 58.2;
+      const _ediffLiftDyn = computeEdiff(_M_Wm2_liftDyn, 0, _Pa_ambient, _bsa);
+      const _residDynLift = _QmLift - (_QconvDynLift + _QradDynLift + _respLift.total + _ediffLiftDyn);
       const _liftHLwatts = _residDynLift < 0 ? Math.abs(_residDynLift) : 0;
       const _liftHLscore = Math.min(10, _liftHLwatts / PHY040_WATTS_PER_POINT); // dead code preserved
       const _hlrScore = computeHLR(_residDynLift, _coreNow, _TambC, sat);

@@ -136,10 +136,13 @@ export function convertGearDB(
       wind_resistance: raw.windResist ?? 3,
       waterproof: raw.waterproof ?? 0,
       breathability: raw.breathability ?? 5,
-      fiber: 'synthetic', // Default; gear DB doesn't distinguish fiber type
+      fiber: 'synthetic',
       wicking: raw.moisture ?? 5,
-      spec_confidence: 5, // All gear DB items are curated
-    };
+      spec_confidence: 5,
+      // Legacy passthrough: calcIntermittentMoisture reads warmthRatio from gear items
+      // for dynamic CLO calculations. Without this, _gearCLO = 0 → _baseCLO floors at 0.30.
+      warmthRatio: raw.warmthRatio ?? 3,
+    } as EngineGearItem;
   }
 
   // Process each category

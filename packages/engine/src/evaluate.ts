@@ -347,47 +347,64 @@ function buildTrajectory(
   // Supplementary pass: resolve activity MET for shiveringBoost
   const _activityMET = resolveActivityMETForSupplementary(input.activity.activity_id);
 
-  // Determine number of cycles from per-cycle arrays
+  // PHY-069 phase-resolution: prefer per-phase data when available
+  const phaseCount = mr.perPhaseMR?.length ?? 0;
+  const hasPhaseData = phaseCount > 0 && mr.perPhaseHL != null && mr.perPhaseHL.length > 0;
   const cycleCount = mr.perCycleMR?.length ?? 0;
-  if (cycleCount === 0) {
-    // Steady-state or linear path with no per-cycle data.
-    // Build a single TrajectoryPoint from scalar summaries.
+
+  if (!hasPhaseData && cycleCount === 0) {
+    // Steady-state or linear path
     points.push(buildSinglePoint(input, seg, ensemble, mr, 0));
     return points;
   }
 
-  // Per-cycle resolution
-  const cycleDurS = (seg.duration_hr * 3600) / (mr.totalRuns ?? cycleCount);
+  // Iteration bounds
+  const iterCount = hasPhaseData ? phaseCount : cycleCount;
+  const totalDurS = seg.duration_hr * 3600;
+  const phaseDurS = hasPhaseData ? totalDurS / phaseCount : totalDurS / (mr.totalRuns ?? cycleCount);
+  const cycleDurS = totalDurS / (mr.totalRuns ?? cycleCount);
+  const sliceDurS = hasPhaseData ? phaseDurS : cycleDurS;
 
   // Shivering history for sustained-shivering detection
   const qShiverHistory: number[] = [];
 
-  for (let i = 0; i < cycleCount; i++) {
-    const t = Math.round(i * cycleDurS);
+  for (let j = 0; j < iterCount; j++) {
+    // Resolve cycle index and phase entry
+    const phaseEntry = hasPhaseData ? mr.perPhaseMR![j]! : null;
+    const hlEntry = hasPhaseData ? mr.perPhaseHL![j]! : null;
+    const cycleIdx = phaseEntry ? phaseEntry.cycle : j;
+    const i = cycleIdx; // legacy alias for per-cycle lookups below
+    const t = Math.round(j * sliceDurS);
 
-    // ── Available per-cycle data from calcIntermittentMoisture ──
-    const T_skin = mr.perCycleTSkin?.[i] ?? 33.0;
-    const T_core = mr.perCycleCoreTemp?.[i] ?? 37.0;
-    const MR = mr.perCycleMR?.[i] ?? 0;
-    const S_heat = mr.perCycleHeatStorage?.[i] ?? 0; // W average for cycle
-    const HLR = mr.perCycleWetPenalty?.[i] ?? 0;
-    const civd = mr.perCycleCIVD?.[i] ?? 1.0;
-    const fatigue = mr.perCycleFatigue?.[i] ?? 0;
+    // ── Available data — phase-level if present, else per-cycle ──
+    const T_skin = mr.perCycleTSkin?.[cycleIdx] ?? 33.0;
+    const T_core = mr.perCycleCoreTemp?.[cycleIdx] ?? 37.0;
+    // MR: phase-level moisture risk (PHY-069)
+    const MR = phaseEntry ? phaseEntry.mr : (mr.perCycleMR?.[cycleIdx] ?? 0);
+    // S_heat: PHY-069 signed residual (positive = surplus, negative = deficit)
+    // Phase-level resolves the cycle-average masking that hid lift-phase cold stress.
+    const S_heat = hlEntry ? hlEntry.residualW : (mr.perCycleHeatStorage?.[cycleIdx] ?? 0);
+    const HLR = hlEntry ? hlEntry.hl : (mr.perCycleWetPenalty?.[cycleIdx] ?? 0);
+    const civd = mr.perCycleCIVD?.[cycleIdx] ?? 1.0;
+    const fatigue = mr.perCycleFatigue?.[cycleIdx] ?? 0;
 
     // ── Supplementary derivations from available data ──
     // vasoconstriction_active: CIVD < threshold means constriction engaged
     const vasoconstriction_active = civd < CIVD_VASOCONSTRICTION_THRESHOLD;
 
     // Q_shiver: SUPPLEMENTARY PASS — real shiveringBoost (Young et al. 1986)
+    // Phase-aware MET: lift/wait/rest phases use ~30% of activity MET (EPOC decayed)
     const _bsa = duboisBSA(input.biometrics.weight_lb);
     const _bodyFatPct = input.biometrics.body_fat_pct ?? 20;
-    const _tissueCLO = 0.6; // baseline tissue insulation estimate
-    const _shivMETs = shiveringBoost(ta_C, _activityMET, ensemble.total_clo + _tissueCLO, _bodyFatPct);
-    const Q_shiver = _shivMETs * 58.2 * _bsa; // METs → Watts total-body
+    const _tissueCLO = 0.6;
+    const _isLowPhase = phaseEntry ? (phaseEntry.phase === 'lift' || phaseEntry.phase === 'wait' || phaseEntry.phase === 'rest') : false;
+    const _phaseMET = _isLowPhase ? Math.max(1.5, _activityMET * 0.3) : _activityMET;
+    const _shivMETs = shiveringBoost(ta_C, _phaseMET, ensemble.total_clo + _tissueCLO, _bodyFatPct);
+    const Q_shiver = _shivMETs * 58.2 * _bsa;
 
     // Track shivering history for sustained detection
     qShiverHistory.push(Q_shiver);
-    const sliceDurMin = cycleDurS / 60;
+    const sliceDurMin = sliceDurS / 60;
     const shiverResult = detectShiveringSustained({
       q_shiver_history: qShiverHistory,
       slice_duration_min: sliceDurMin,
@@ -398,26 +415,26 @@ function buildTrajectory(
     const sweat_rate = S_heat > 0 ? 0.01 : 0; // crude placeholder
     const SW_max = 0.03; // g/s, typical max (TODO-SUPPLEMENTARY)
 
-    // T_core projection for next slice
-    const T_core_next = (i < cycleCount - 1 && mr.perCycleCoreTemp?.[i + 1] != null)
-      ? mr.perCycleCoreTemp[i + 1]!
-      : T_core; // At last cycle, project flat
+    // T_core projection for next cycle (not next phase)
+    const T_core_next = (cycleIdx < cycleCount - 1 && mr.perCycleCoreTemp?.[cycleIdx + 1] != null)
+      ? mr.perCycleCoreTemp[cycleIdx + 1]!
+      : T_core;
 
-    // dT/dt estimates
-    const T_core_prev = (i > 0 && mr.perCycleCoreTemp?.[i - 1] != null) ? mr.perCycleCoreTemp[i - 1]! : T_core;
+    // dT/dt estimates (per-cycle scale, not per-phase)
+    const T_core_prev = (cycleIdx > 0 && mr.perCycleCoreTemp?.[cycleIdx - 1] != null) ? mr.perCycleCoreTemp[cycleIdx - 1]! : T_core;
     const dT_core_dt = cycleDurS > 0 ? (T_core - T_core_prev) / (cycleDurS / 3600) : 0;
-    const T_skin_prev = (i > 0 && mr.perCycleTSkin?.[i - 1] != null) ? mr.perCycleTSkin[i - 1]! : T_skin;
+    const T_skin_prev = (cycleIdx > 0 && mr.perCycleTSkin?.[cycleIdx - 1] != null) ? mr.perCycleTSkin[cycleIdx - 1]! : T_skin;
     const dT_skin_dt = cycleDurS > 0 ? (T_skin - T_skin_prev) / (cycleDurS / 3600) : 0;
 
-    // T_skin smoothed (3-point trailing average)
-    const smoothWindow = Math.min(3, i + 1);
+    // T_skin smoothed (3-point trailing average on per-cycle data)
+    const smoothWindow = Math.min(3, cycleIdx + 1);
     let smoothSum = 0;
-    for (let j = i - smoothWindow + 1; j <= i; j++) {
-      smoothSum += mr.perCycleTSkin?.[j] ?? T_skin;
+    for (let si = cycleIdx - smoothWindow + 1; si <= cycleIdx; si++) {
+      smoothSum += mr.perCycleTSkin?.[Math.max(0, si)] ?? T_skin;
     }
     const T_skin_smoothed = smoothSum / smoothWindow;
-    const dT_skin_dt_smoothed = i >= 2
-      ? (T_skin_smoothed - (mr.perCycleTSkin?.[i - 2] ?? T_skin)) / ((2 * cycleDurS) / 3600)
+    const dT_skin_dt_smoothed = cycleIdx >= 2
+      ? (T_skin_smoothed - (mr.perCycleTSkin?.[cycleIdx - 2] ?? T_skin)) / ((2 * cycleDurS) / 3600)
       : dT_skin_dt;
 
     // ── CDI Stage Detection (v1.4 §4.2) ──────────────────
@@ -462,9 +479,9 @@ function buildTrajectory(
 
     // ── CM trigger states ─────────────────────────────────
     const cm_trigger = {
-      cold_core: buildTriggerState(T_core <= 35.0, T_core, T_core_next, 35.0, 'below', cycleDurS),
-      cold_dex: buildTriggerState(T_skin <= 28.0, T_skin, T_skin, 28.0, 'below', cycleDurS), // no skin projection
-      heat_core: buildTriggerState(T_core >= 38.5, T_core, T_core_next, 38.5, 'above', cycleDurS),
+      cold_core: buildTriggerState(T_core <= 35.0, T_core, T_core_next, 35.0, 'below', sliceDurS),
+      cold_dex: buildTriggerState(T_skin <= 28.0, T_skin, T_skin, 28.0, 'below', sliceDurS),
+      heat_core: buildTriggerState(T_core >= 38.5, T_core, T_core_next, 38.5, 'above', sliceDurS),
       shivering_sustained: {
         threshold_crossed: shiverResult.q_shiver_sustained,
         projected_crossing_eta: null, // Not projectable
@@ -536,7 +553,7 @@ function buildTrajectory(
 
       cm_trigger,
 
-      phase: mr.perPhaseMR?.[i * 2]?.phase ?? 'steady',
+      phase: phaseEntry ? phaseEntry.phase : 'cycle',
     };
 
     points.push(point);
@@ -819,12 +836,24 @@ function buildTrajectorySnapshot(points: TrajectoryPoint[]) {
 // Helper functions
 // ============================================================================
 
+/**
+ * Inverse of gear/adapter.ts warmthToCLO.
+ * calcIntermittentMoisture reads warmthRatio (1-10) to sum gear CLO internally.
+ * Without this, _gearCLO = 0 and _baseCLO floors at 0.30 — entire dynamic CLO path breaks.
+ */
+function cloToWarmthRatio(clo: number): number {
+  if (clo <= 0.30) return Math.max(1, clo / 0.06);
+  if (clo <= 0.50) return 5 + (clo - 0.30) / 0.10;
+  return Math.min(10, 7 + (clo - 0.50) / 0.17);
+}
+
 /** Map EngineGearItem[] to ensemble module's GearItem format. */
 function mapGearItems(ensemble: GearEnsemble): EnsembleGearItem[] {
   return ensemble.items.map(item => ({
     slot: item.slot,
     im: item.im,
-    warmth: item.clo, // ensemble module uses 'warmth' which maps to CLO
+    warmth: item.clo,
+    warmthRatio: cloToWarmthRatio(item.clo),  // required by calcIntermittentMoisture _gearCLO sum
     breathability: item.breathability ?? 5,
     waterproof: item.waterproof ?? 0,
     windResist: item.wind_resistance ?? 3,
@@ -832,7 +861,7 @@ function mapGearItems(ensemble: GearEnsemble): EnsembleGearItem[] {
     wicking: item.wicking ?? 7,
     name: item.name,
     specConfidence: item.spec_confidence ?? 5,
-  } as unknown as EnsembleGearItem)); // Cast through unknown — verified by project typecheck
+  } as unknown as EnsembleGearItem));
 }
 
 /** Map fitness profile from EngineInput format to calcIntermittentMoisture format. */

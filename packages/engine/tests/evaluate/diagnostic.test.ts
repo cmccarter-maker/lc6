@@ -160,6 +160,20 @@ describe('DIAGNOSTIC — Human-readable recommendation output', () => {
     console.log(`  Clinical stage: ${result.trip_headline.peak_clinical_stage}`);
     console.log(`  Impairment reached: ${result.trip_headline.named_impairment_stage_reached}`);
     console.log(`  CM cards: ${result.trip_headline.cm_card_count}`);
+
+    // ── TRAJECTORY INTERNALS: first 6 phases + last 6 phases ──
+    console.log('\n  ── TRAJECTORY PEEK (Pill 1) ──');
+    console.log('  idx  phase      t(s)    T_core   T_skin   S(W)    MR    HLR   CDI   stage              civd');
+    const traj = result.four_pill.your_gear.trajectory;
+    const showIndices = [0, 1, 2, 3, 4, 5, traj.length-6, traj.length-5, traj.length-4, traj.length-3, traj.length-2, traj.length-1];
+    for (const idx of showIndices) {
+      if (idx < 0 || idx >= traj.length) continue;
+      const p = traj[idx]!;
+      const civd = p.h_tissue === 5.0 ? 'HIGH' : 'low';
+      console.log(
+        `  ${String(idx).padStart(3)}  ${p.phase.padEnd(10)} ${String(p.t).padStart(6)}  ${p.T_core.toFixed(2).padStart(6)}  ${p.T_skin.toFixed(2).padStart(6)}  ${p.S.toFixed(0).padStart(6)}  ${p.MR.toFixed(1).padStart(4)}  ${p.HLR.toFixed(1).padStart(4)}  ${p.CDI.toFixed(1).padStart(4)}  ${p.clinical_stage.padEnd(18)} ${civd}`
+      );
+    }
     console.log('');
 
     // Test passes if pipeline completes — the console output is the deliverable
