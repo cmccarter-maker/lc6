@@ -13,11 +13,11 @@ import {
 } from '../../src/ensemble/gear_layers.js';
 
 describe('FIBER_ABSORPTION (ASTM D1909 baseline)', () => {
-  it('locks in WOOL = 0.30, COTTON = 0.15, SYNTHETIC = 0.06, DOWN = 0.12', () => {
-    expect(FIBER_ABSORPTION.WOOL).toBe(0.30);
-    expect(FIBER_ABSORPTION.COTTON).toBe(0.15);
-    expect(FIBER_ABSORPTION.SYNTHETIC).toBe(0.06);
-    expect(FIBER_ABSORPTION.DOWN).toBe(0.12);
+  it('PHY-071: locks in saturation capacities SYNTHETIC=0.40, WOOL=0.35, COTTON=2.00, DOWN=0.60', () => {
+    expect(FIBER_ABSORPTION.WOOL).toBe(0.35);
+    expect(FIBER_ABSORPTION.COTTON).toBe(2.00);
+    expect(FIBER_ABSORPTION.SYNTHETIC).toBe(0.40);
+    expect(FIBER_ABSORPTION.DOWN).toBe(0.60);
   });
 });
 
@@ -99,27 +99,27 @@ describe('breathabilityToIm — piecewise mapping', () => {
 describe('getLayerCapacity', () => {
   it('uses explicit weightG when provided', () => {
     // weightG=200, fiber=WOOL (0.30): 200 * 0.30 = 60
-    expect(getLayerCapacity({ weightG: 200 }, 'WOOL')).toBe(60);
+    expect(getLayerCapacity({ weightG: 200 }, 'WOOL')).toBe(70);
   });
 
   it('estimates weight from warmth when weightG missing', () => {
     // warmth=5: weightG=100+5*20=200. SYNTHETIC (0.06): 200*0.06=12
-    expect(getLayerCapacity({ warmth: 5 }, 'SYNTHETIC')).toBe(12);
+    expect(getLayerCapacity({ warmth: 5 }, 'SYNTHETIC')).toBe(80);
   });
 
   it('uses warmthRatio fallback when warmth missing', () => {
     // warmthRatio=7: 100+7*20=240. WOOL (0.30): 240*0.30=72
-    expect(getLayerCapacity({ warmthRatio: 7 }, 'WOOL')).toBe(72);
+    expect(getLayerCapacity({ warmthRatio: 7 }, 'WOOL')).toBe(84);
   });
 
   it('default warmth=5 when no warmth fields', () => {
     // 100 + 5*20 = 200. COTTON (0.15): 30
-    expect(getLayerCapacity({}, 'COTTON')).toBe(30);
+    expect(getLayerCapacity({}, 'COTTON')).toBe(400);
   });
 
   it('returns minimum 2mL even at low weight', () => {
     // weightG=10, SYNTHETIC: 10*0.06=0.6 → bumped to 2
-    expect(getLayerCapacity({ weightG: 10 }, 'SYNTHETIC')).toBe(2);
+    expect(getLayerCapacity({ weightG: 10 }, 'SYNTHETIC')).toBe(4);
   });
 
   it('uses 0.02 fallback for unknown fiber type', () => {
@@ -182,13 +182,13 @@ describe('buildLayerArray — gear-driven path', () => {
     expect(r.length).toBe(3);
     // Verify base layer is WOOL (Smartwool keyword)
     expect(r[0]!.fiber).toBe('WOOL');
-    expect(r[0]!.cap).toBe(75);  // 250 * 0.30
+    expect(r[0]!.cap).toBe(87.5);  // PHY-071  // 250 * 0.30
     // Mid layer SYNTHETIC default
     expect(r[1]!.fiber).toBe('SYNTHETIC');
-    expect(r[1]!.cap).toBe(18);  // 300 * 0.06
+    expect(r[1]!.cap).toBe(120);  // PHY-071: 300g × 0.40
     // Shell SYNTHETIC default
     expect(r[2]!.fiber).toBe('SYNTHETIC');
-    expect(r[2]!.cap).toBe(24);  // 400 * 0.06
+    expect(r[2]!.cap).toBe(160);  // PHY-071: 400g × 0.40
   });
 });
 

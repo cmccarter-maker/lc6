@@ -169,9 +169,9 @@ describe('Baseline: Hiking 55°F 4hrs', () => {
 
   it('MR is moderate (sweating from exertion at mild temp)', () => {
     const result = evaluate(input());
-    // Baseline: sessionMR = 5.5. Hiking generates significant sweat
+    // PHY-071 corrected: sessionMR ~1.3 (was 5.5 under buggy cap). Hiking at 55°F with 1.4 CLO generates some sweat
     // at 55°F with 1.4 CLO — moderate moisture accumulation expected.
-    expect(result.trip_headline.peak_MR).toBeGreaterThanOrEqual(2.0);
+    expect(result.trip_headline.peak_MR).toBeGreaterThanOrEqual(0.5);  // PHY-071: corrected cap → lower MR
     expect(result.trip_headline.peak_MR).toBeLessThanOrEqual(8.0);
   });
 

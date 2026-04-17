@@ -94,42 +94,154 @@ export function evaluate(input: EngineInput): EngineOutput {
   // ── Step 3-4: Evaluate user ensemble ──────────────────
   const userResult = evaluateSingleEnsemble(input, input.user_ensemble, 'your_gear', false);
 
-  // ── Step 5: Evaluate strategy candidates + select winner ──
-  const candidates = input.strategy_candidates ?? [];
-  const candidateResults: Array<{ ensemble: GearEnsemble; result: PillResult; peakCDI: number }> = [];
+  // ── Step 5: Evaluate strategy candidates + select winner (PHY-070c) ──
+  //
+  // Filter-then-rank hierarchy grounded in published physiological thresholds:
+  //   1. HARD CLINICAL FLOOR:  peak CDI ≥ 5 disqualifies absolutely (named impairment)
+  //   2. COMFORT/FAILURE GATES: peak MR ≤ 4, peak HLR ≤ 4, peak CDI ≤ 4
+  //   3. Rank survivors by argmin peak |TSENS| (Gagge 1986 comfort distance)
+  //   4. Tiebreaker 1 (|TSENS| gap < 0.2): argmin peak MR (drier = more robust)
+  //   5. Tiebreaker 2 (MR gap < 0.3):     argmin |T_core drift| (most stable)
+  //
+  // If no candidate passes gates, fall back to "least bad" via lexicographic
+  // sort (min peak CDI, then min peak MR, then min peak HLR) with warning flag.
+  //
+  // Sources: Yoo & Kim 2008 (MR cascade), ACSM 2021/Mayo (CDI clinical stages),
+  //          Gagge 1986 (TSENS comfort), ISO 7730 Annex D (neutral skin).
 
-  // Pre-filter candidates by IREQ feasibility
+  interface CandidateScore {
+    ensemble: GearEnsemble;
+    result: PillResult;
+    peakCDI: number;
+    peakMR: number;
+    peakHLR: number;
+    peakAbsTSENS: number;
+    coreDrift: number;
+    stage: ClinicalStage;
+  }
+
+  const candidates = input.strategy_candidates ?? [];
+  const candidateScores: CandidateScore[] = [];
   let candidatesPostIreq = 0;
+
   for (const candidate of candidates) {
     // IREQ gate: reject ensembles below IREQ_min
     if (!ireqSummary.user_ensemble_feasible && candidate.total_clo < ireqSummary.ireq_min_clo) {
-      continue; // Below IREQ_min — infeasible, skip full evaluation
+      continue;
     }
-    // For excluded activities (water-primary), all candidates pass
     if (ireqSummary.ireq_min_clo > 0 && candidate.total_clo < ireqSummary.ireq_min_clo) {
       continue;
     }
     candidatesPostIreq++;
 
-    // Full pipeline evaluation on this candidate
     const result = evaluateSingleEnsemble(input, candidate, 'optimal_gear', false);
+    const traj = result.trajectory;
     const peakCDI = result.trajectory_summary.peak_CDI;
-    candidateResults.push({ ensemble: candidate, result, peakCDI });
+    const peakMR = traj.length > 0 ? Math.max(...traj.map(p => p.MR)) : 0;
+    const peakHLR = traj.length > 0 ? Math.max(...traj.map(p => p.HLR)) : 0;
+    const peakAbsTSENS = traj.length > 0 ? Math.max(...traj.map(p => Math.abs(p.TSENS))) : 0;
+    const coreStart = traj[0]?.T_core ?? 37;
+    const coreEnd = traj[traj.length - 1]?.T_core ?? 37;
+    const coreDrift = Math.abs(coreEnd - coreStart);
+
+    candidateScores.push({
+      ensemble: candidate,
+      result,
+      peakCDI,
+      peakMR,
+      peakHLR,
+      peakAbsTSENS,
+      coreDrift,
+      stage: result.trajectory_summary.peak_clinical_stage,
+    });
   }
 
-  // Winner = argmin peak_CDI among evaluated candidates (Architecture v1.1 §1.1 Step 5)
+  // ── PHY-070c selection hierarchy ──
+  // Step 1: HARD CLINICAL FLOOR — peak CDI ≥ 5 (named clinical impairment)
+  //         These are NEVER recommended without explicit STOP warning.
+  const CDI_CLINICAL_FLOOR = 5;
+  const MR_COMFORT_CEILING = 4;
+  const HLR_COMFORT_CEILING = 4;
+  const CDI_COMFORT_CEILING = 4;
+  const TSENS_TIEBREAKER_GAP = 0.2;
+  const MR_TIEBREAKER_GAP = 0.3;
+
+  // Step 2: COMFORT GATES — all three metrics must be ≤ 4
+  const qualified = candidateScores.filter(c =>
+    c.peakCDI <= CDI_COMFORT_CEILING &&
+    c.peakMR  <= MR_COMFORT_CEILING &&
+    c.peakHLR <= HLR_COMFORT_CEILING,
+  );
+
+  // Step 3-5: Rank qualified candidates by comfort (|TSENS|) with tiebreakers
+  const rankSurvivors = (arr: CandidateScore[]): CandidateScore[] => {
+    return [...arr].sort((a, b) => {
+      const tsensDiff = a.peakAbsTSENS - b.peakAbsTSENS;
+      if (Math.abs(tsensDiff) > TSENS_TIEBREAKER_GAP) return tsensDiff;
+      const mrDiff = a.peakMR - b.peakMR;
+      if (Math.abs(mrDiff) > MR_TIEBREAKER_GAP) return mrDiff;
+      return a.coreDrift - b.coreDrift;
+    });
+  };
+
+  // Fallback: if no candidate passes comfort gates, rank ALL by lexicographic severity
+  //          (min peak CDI → min peak MR → min peak HLR). Flag as warning.
+  const rankLeastBad = (arr: CandidateScore[]): CandidateScore[] => {
+    return [...arr].sort((a, b) => {
+      const cdiDiff = a.peakCDI - b.peakCDI;
+      if (cdiDiff !== 0) return cdiDiff;
+      const mrDiff = a.peakMR - b.peakMR;
+      if (Math.abs(mrDiff) > 0.1) return mrDiff;
+      return a.peakHLR - b.peakHLR;
+    });
+  };
+
   let winnerResult: PillResult | null = null;
   let winnerEnsemble: GearEnsemble | null = null;
   let winnerPeakCDI: number | null = null;
   let winnerPeakStage: ClinicalStage | null = null;
+  let winnerQualified = false;
+  let winnerWarnings: string[] = [];
 
-  if (candidateResults.length > 0) {
-    candidateResults.sort((a, b) => a.peakCDI - b.peakCDI);
-    const best = candidateResults[0]!;
+  if (qualified.length > 0) {
+    // Normal path: pick best comfort among qualified kits
+    const ranked = rankSurvivors(qualified);
+    const best = ranked[0]!;
     winnerResult = best.result;
     winnerEnsemble = best.ensemble;
     winnerPeakCDI = best.peakCDI;
-    winnerPeakStage = best.result.trajectory_summary.peak_clinical_stage;
+    winnerPeakStage = best.stage;
+    winnerQualified = true;
+  } else if (candidateScores.length > 0) {
+    // Fallback: least-bad with warning narrative
+    const ranked = rankLeastBad(candidateScores);
+    const best = ranked[0]!;
+    winnerResult = best.result;
+    winnerEnsemble = best.ensemble;
+    winnerPeakCDI = best.peakCDI;
+    winnerPeakStage = best.stage;
+    winnerQualified = false;
+
+    // Build warning narrative based on which thresholds were crossed
+    if (best.peakCDI >= CDI_CLINICAL_FLOOR) {
+      winnerWarnings.push(
+        `STOP: Best available kit produces expected clinical impairment (peak CDI ${best.peakCDI.toFixed(1)}, stage ${best.stage}). Do not proceed without substantial gear change or postponement.`,
+      );
+    } else if (best.peakCDI > CDI_COMFORT_CEILING) {
+      winnerWarnings.push(
+        `CDI ${best.peakCDI.toFixed(1)} exceeds comfort threshold — body will work hard to compensate. Monitor for shivering, judgment impairment, or heat stress.`,
+      );
+    }
+    if (best.peakMR > MR_COMFORT_CEILING) {
+      winnerWarnings.push(
+        `MR ${best.peakMR.toFixed(1)} exceeds saturation threshold — inner layers will become wet. Plan layer swap or warming hut break; expect evaporative chill for remainder of trip.`,
+      );
+    }
+    if (best.peakHLR > HLR_COMFORT_CEILING) {
+      winnerWarnings.push(
+        `HLR ${best.peakHLR.toFixed(1)} exceeds comfort threshold — sustained cold exposure during stationary phases. Warming breaks recommended; shivering onset likely with prolonged exposure.`,
+      );
+    }
   }
 
   // ── Step 6: Four-pill comparison ────────────────────────
@@ -179,10 +291,12 @@ export function evaluate(input: EngineInput): EngineOutput {
     strategy: {
       candidates_total: candidates.length,
       candidates_post_ireq: candidatesPostIreq,
-      candidates_evaluated: candidateResults.length,
+      candidates_evaluated: candidateScores.length,
       winner_ensemble_id: winnerEnsemble?.ensemble_id ?? null,
       winner_peak_cdi: winnerPeakCDI,
       winner_peak_stage: winnerPeakStage,
+      winner_qualified: winnerQualified,
+      winner_warnings: winnerWarnings,
     },
     fall_in: null,    // Deferred per Architecture §4.3
     sleep_system: null, // Deferred per Architecture §4.3
@@ -495,6 +609,16 @@ function buildTrajectory(
     const tau_impair = computeTauImpair(stageResult.stage, T_core, dT_core_dt);
 
     // ── Assemble TrajectoryPoint ──────────────────────────
+    // PHY-070b: Gagge 1986 thermal sensation (comfort metric)
+    // Coefficients: Gagge/Fobelets/Berglund 1986 (ASHRAE Trans 92(2B):709-731)
+    // Neutral skin: ISO 7730 Annex D equation C.1 (activity-dependent)
+    const TSENS_ALPHA = 0.4305;
+    const TSENS_BETA = 0.0905;
+    const T_CORE_NEUTRAL = 36.8;
+    const _M_Wm2_tsens = _phaseMET * 58.2;
+    const T_skin_neutral = 35.7 - 0.0275 * _M_Wm2_tsens;
+    const TSENS = TSENS_ALPHA * (T_skin - T_skin_neutral) + TSENS_BETA * (T_core - T_CORE_NEUTRAL);
+
     const point: TrajectoryPoint = {
       t,
       segment_id: seg.segment_id,
@@ -554,6 +678,7 @@ function buildTrajectory(
       cm_trigger,
 
       phase: phaseEntry ? phaseEntry.phase : 'cycle',
+      TSENS: Math.round(TSENS * 100) / 100,
     };
 
     points.push(point);
@@ -601,6 +726,7 @@ function buildSinglePoint(
     MR: mr.sessionMR,
     HLR: 0,
     CDI: mr.sessionMR > 5 ? mr.sessionMR * 0.8 : mr.sessionMR * 0.5,
+    TSENS: 0, // PHY-070b: steady-state path doesn't differentiate comfort by phase
     regime: 'neutral',
     binding_pathway: mr.sessionMR > 3 ? 'moisture' : 'neutral',
     clinical_stage: 'thermal_neutral',

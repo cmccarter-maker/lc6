@@ -43,6 +43,7 @@ import {
   epocParams,
   estimateCoreTemp,
   civdProtectionFactor,
+  civdProtectionFromSkin,
   shiveringBoost,
   computeHLR,
   calcElevationHumidity,
@@ -639,8 +640,13 @@ export function calcIntermittentMoisture(
       const _Rclo = _totalCLO * 0.155 * _cloDeg;
       const _runCLOdyn = computeEffectiveCLO(_baseCLO, _cycleMET, _phy049ShellWR, windMph, _layers.length);
       const coreTemp = estimateCoreTemp(LC5_T_CORE_BASE, _cumStorageWmin, _bodyMassKg);
-      // PHY-069: Compute CIVD-responsive tissue resistance for this cycle
-      const _civdCycle = civdProtectionFactor(coreTemp);
+      // PHY-070a: CIVD is skin-driven (Veicsteinas 1982, Young 1996).
+      // Use previous cycle's T_skin to avoid circular dependency within iterativeTSkin.
+      // Seed cycle 0 with Gagge neutral skin (33.7°C) since no prior exists.
+      const _prevTskin = (_perCycleTSkin.length > 0)
+        ? _perCycleTSkin[_perCycleTSkin.length - 1]!
+        : 33.7;
+      const _civdCycle = civdProtectionFromSkin(_prevTskin);
       const _Rtissue = computeRtissueFromCIVD(_civdCycle);
 
       // === RUN PHASE: Energy Balance ===
@@ -935,7 +941,7 @@ export function calcIntermittentMoisture(
       if (_cMR < 3.5) _goodRunCount++;
       else if (_cMR < 4.0) _yellowRunCount++;
       _perCycleCoreTemp.push(Math.round(_coreNow * 100) / 100);
-      _perCycleCIVD.push(Math.round(civdProtectionFactor(_coreNow) * 100) / 100);
+      _perCycleCIVD.push(Math.round(civdProtectionFromSkin(_TskRun) * 100) / 100);
       _perCycleTSkin.push(Math.round(_TskRun * 10) / 10);
     }
 

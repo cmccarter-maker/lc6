@@ -38,20 +38,38 @@ export interface GearLayer {
 }
 
 /**
- * Fiber moisture regain coefficients (ASTM D1909).
+ * PHY-071: Fiber saturation capacity coefficients.
  *
- * - WOOL: 0.30 — merino regain 13-16% at 65%RH, up to 33% at saturation
- * - COTTON: 0.15 — cotton regain 7-8.5%, lateral wicking spreads to ~15%
- * - SYNTHETIC: 0.06 — ISO 9073-6 methodology; Yoo & Kim 2008 Fig 11
- * - DOWN: 0.12 — cluster absorption, loses ~50% loft when wet
+ * CORRECTED from moisture regain (ASTM D1909 equilibrium values) to
+ * SATURATION CAPACITY — the maximum liquid water the fabric retains
+ * before drip-off, expressed as fraction of dry weight.
  *
- * LC5 risk_functions.js line 222.
+ * These determine per-layer buffer capacity for accumulating liquid sweat.
+ * Consumed by getLayerCapacity() to produce cap values used in the
+ * saturation cascade model (Yoo & Kim 2008 Fukazawa 40mL threshold).
+ *
+ * Values per:
+ *   - Rossi 2005 (Thermal Manikins and Modelling §9.4)
+ *   - Holmer 2005 (Int J Ind Ergonomics 36:1025-1031)
+ *   - Das 2007 (Science in Clothing Comfort Ch.6)
+ *   - Fukazawa 2003 (fabric absorbency methodology)
+ *   - Scheurell 1985 (down cluster degradation at saturation)
+ *
+ *   SYNTHETIC: 0.40 — polyester/nylon at wet-out (range 0.35-0.50)
+ *   WOOL:      0.35 — merino at wet-out (close to regain — wool's advantage)
+ *   COTTON:    2.00 — cotton holds ~2x dry weight (Rossi 1.5-2.5 range)
+ *   DOWN:      0.60 — clusters at saturation; catastrophic loft loss past this
+ *
+ * Previous LC5 values were moisture regain (ASTM D1909) — a different
+ * physical quantity (equilibrium moisture at 65%RH, not liquid saturation).
+ * Using regain where capacity was needed under-reported buffer by ~7x for
+ * synthetics, causing systematic false-positive saturation cascades.
  */
 export const FIBER_ABSORPTION: Readonly<Record<FiberType, number>> = {
-  WOOL: 0.30,
-  COTTON: 0.15,
-  SYNTHETIC: 0.06,
-  DOWN: 0.12,
+  SYNTHETIC: 0.40,
+  WOOL: 0.35,
+  COTTON: 2.00,
+  DOWN: 0.60,
 };
 
 /**

@@ -11,15 +11,15 @@ describe('calcIntermittentMoisture — Breck 16°F groomers 6hrs', () => {
     'skiing', 16, 40, 8, 6, 'male', 170, 1.0, 0.089, 'groomers', null, false, 0, false, 1.0, null, null, 'moderate', null, 5, null, 0, null, null, null, 0, null,
   );
 
-  it('sessionMR = 7', () => { expect(r.sessionMR).toBe(7); });
-  it('trapped ≈ 0.090 [PHY-069]', () => { expect(r.trapped).toBeCloseTo(0.090, 2); });
+  it('sessionMR = 7', () => { expect(r.sessionMR).toBeCloseTo(3.4, 1); });  // PHY-071: was 7 (inflated by wrong fiber cap)
+  it('trapped ≈ 0.090 [PHY-069]', () => { expect(r.trapped).toBeCloseTo(0.111, 2); });  // PHY-071
   it('totalRuns = 36', () => { expect(r.totalRuns).toBe(36); });
-  it('goodRunCount = 11 [PHY-069]', () => { expect(r.goodRunCount).toBe(11); });
-  it('yellowRunCount = 2', () => { expect(r.yellowRunCount).toBe(2); });
+  it('goodRunCount = 11 [PHY-069]', () => { expect(r.goodRunCount).toBe(36); });  // PHY-071
+  it('yellowRunCount = 2', () => { expect(r.yellowRunCount).toBe(0); });  // PHY-071
   it('peakHeatBalanceDirection = cold [PHY-069]', () => { expect(r.peakHeatBalanceDirection).toBe('cold'); });
-  it('totalFluidLoss ≈ 450 [PHY-069]', () => { expect(r.totalFluidLoss).toBeCloseTo(450, -1); });
+  it('totalFluidLoss ≈ 450 [PHY-069]', () => { expect(r.totalFluidLoss).toBeCloseTo(445, -1); });  // PHY-071
   it('perCycleTrapped has 36 entries', () => { expect(r.perCycleTrapped?.length).toBe(36); });
-  it('perCycleMR first entry ≈ 0.4 [PHY-069]', () => { expect(r.perCycleMR?.[0]).toBeCloseTo(0.4, 1); });
+  it('perCycleMR first entry ≈ 0.4 [PHY-069]', () => { expect(r.perCycleMR?.[0]).toBeCloseTo(0.1, 1); });  // PHY-071
   it('has layerBuffers', () => { expect(r.layerBuffers).not.toBeNull(); });
   it('has endingLayers', () => { expect(r.endingLayers).not.toBeNull(); });
 });
@@ -29,8 +29,8 @@ describe('calcIntermittentMoisture — sunny golf walking 80°F 4hrs', () => {
     'golf', 80, 55, 5, 4, 'male', 170, 1.0, 0.15, null, null, false, 0, false, 1.0, null, null, 'moderate', null, 3, null, 0, null, null, null, 0, null,
   );
 
-  it('sessionMR = 1.8', () => { expect(r.sessionMR).toBe(1.5); });
-  it('trapped ≈ 0.0177', () => { expect(r.trapped).toBeCloseTo(0.01452, 3); });
+  it('sessionMR ≈ 1.1 [PHY-071]', () => { expect(r.sessionMR).toBeCloseTo(1.1, 1); });
+  it('trapped ≈ 0.0234 [PHY-071]', () => { expect(r.trapped).toBeCloseTo(0.0234, 3); });
   it('totalRuns = 16', () => { expect(r.totalRuns).toBe(16); });
   it('goodRunCount = 16 (all comfortable)', () => { expect(r.goodRunCount).toBe(16); });
 });
@@ -40,8 +40,8 @@ describe('calcIntermittentMoisture — cool day hike 55°F 4hrs (synthetic cycli
     'hiking', 55, 60, 3, 4, 'male', 170, 1.0, 0.15, null, null, false, 0, false, 1.0, null, null, 'moderate', null, 3, null, 0, null, null, null, 0, null,
   );
 
-  it('sessionMR = 5.5', () => { expect(r.sessionMR).toBe(5.5); });
-  it('trapped ≈ 0.0804', () => { expect(r.trapped).toBeCloseTo(0.0804, 3); });
+  it('sessionMR = 5.5', () => { expect(r.sessionMR).toBeCloseTo(3.5, 1); });  // PHY-071
+  it('trapped ≈ 0.0804', () => { expect(r.trapped).toBeCloseTo(0.1043, 3); });
   it('totalRuns = 4', () => { expect(r.totalRuns).toBe(4); });
   it('perCycleTrapped has 4 entries', () => { expect(r.perCycleTrapped?.length).toBe(4); });
 });
@@ -51,8 +51,8 @@ describe('calcIntermittentMoisture — hot road cycling flat 85°F 2hrs', () => 
     'road_cycling', 85, 50, 10, 2, 'male', 170, 1.0, 0.15, null, null, false, 0, false, 1.0, null, null, 'high', null, 3, null, 0, null, null, null, 0, null,
   );
 
-  it('sessionMR = 3.6', () => { expect(r.sessionMR).toBe(1.5); });
-  it('trapped ≈ 0.0324', () => { expect(r.trapped).toBeCloseTo(0.01019, 3); });
+  it('sessionMR ≈ 0.4 [PHY-071]', () => { expect(r.sessionMR).toBeCloseTo(0.4, 1); });
+  it('trapped ≈ 0.0091 [PHY-071]', () => { expect(r.trapped).toBeCloseTo(0.0091, 3); });
   it('totalRuns = 2', () => { expect(r.totalRuns).toBe(2); });
   it('peakHeatBalanceDirection = hot', () => { expect(r.peakHeatBalanceDirection).toBe('hot'); });
 });

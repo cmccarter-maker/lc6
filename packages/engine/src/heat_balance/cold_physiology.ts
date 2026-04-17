@@ -29,6 +29,29 @@ export function civdProtectionFactor(coreTempC: number): number {
 }
 
 /**
+ * PHY-070a: CIVD / peripheral vasoconstriction protection factor, skin-temperature driven.
+ *
+ * Returns 0.0 (fully dilated, normal perfusion) to 1.0 (fully constricted).
+ *
+ * Physiology per Veicsteinas et al. 1982 (cited in Young/Sawka/Pandolf 1996 §Vasomotor Responses):
+ *   - Insulation begins to increase when T_skin < 35°C (95°F) — onset of constriction
+ *   - Insulation reaches maximum when T_skin ≤ 31°C (89°F) — full constriction
+ *
+ * Linear ramp between endpoints. No free parameters.
+ *
+ * Replaces civdProtectionFactor(coreTempC) which inverted the causal chain
+ * (core drifts AFTER skin-driven vasoconstriction engages, not before).
+ *
+ * @param skinTempC mean weighted skin temperature (°C)
+ */
+export function civdProtectionFromSkin(skinTempC: number): number {
+  if (skinTempC >= 35.0) return 0.0;
+  if (skinTempC <= 31.0) return 1.0;
+  return (35.0 - skinTempC) / 4.0;
+}
+
+
+/**
  * Shivering thermogenesis boost in METs (Young et al. 1986).
  *
  * Cold stress (T_amb < 10°C) is mitigated by CLO insulation and body fat.

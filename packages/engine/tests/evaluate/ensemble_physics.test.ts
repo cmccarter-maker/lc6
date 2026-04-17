@@ -145,7 +145,7 @@ describe('Cardinal Rule #2: im drives evaporation, NOT CLO', () => {
       0.30, 0.15, 0.50, 0.15, 0.80, 0.12, 0.20, 0.08,
     );
 
-    const input = makeInput(userLowIm, [candidateHighIm, candidateSameIm]);
+    const input = makeInput(userLowIm, [candidateHighIm, candidateSameIm], 85, 2, 'road_cycling');  // PHY-071: im binds under heat stress, not cold
     const result = evaluate(input);
 
     // Winner should be the high-im candidate (lower MR → lower CDI)

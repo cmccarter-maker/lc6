@@ -227,6 +227,13 @@ export interface TrajectoryPoint {
   MR: number;
   HLR: number;
   CDI: number;
+  /**
+   * PHY-070b: Gagge 1986 thermal sensation (-5 to +5).
+   * Signed: negative = cold, positive = hot, zero = thermoneutral.
+   * TSENS = 0.4305 × (T_skin - T_skin_neutral) + 0.0905 × (T_core - 36.8)
+   * T_skin_neutral per ISO 7730 Annex D: 35.7 - 0.0275 × (M - W) W/m²
+   */
+  TSENS: number;
   regime: Regime;
   binding_pathway: BindingPathway;
 
@@ -395,6 +402,10 @@ export interface StrategyMetadata {
   winner_ensemble_id: string | null;
   winner_peak_cdi: number | null;
   winner_peak_stage: ClinicalStage | null;
+  /** PHY-070c: true if winner passed all comfort gates (MR≤4, HLR≤4, CDI≤4) */
+  winner_qualified?: boolean;
+  /** PHY-070c: warning narratives if winner did not fully qualify */
+  winner_warnings?: string[];
 }
 
 // ── Overlays (placeholders) — Architecture v1.1 §4.5 ───

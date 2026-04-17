@@ -143,6 +143,14 @@ describe('DIAGNOSTIC — Human-readable recommendation output', () => {
 
     console.log(`\n  ── WINNER SELECTION ──`);
     console.log(`  Winner: ${result.strategy.winner_ensemble_id}`);
+    console.log(`  Qualified: ${result.strategy.winner_qualified ?? 'n/a'}`);
+    const warnings = result.strategy.winner_warnings ?? [];
+    if (warnings.length > 0) {
+      console.log(`  ── WARNINGS ──`);
+      for (const w of warnings) console.log(`  ⚠ ${w}`);
+    } else {
+      console.log(`  No warnings (kit passed all comfort gates)`);
+    }
     console.log(`  Winner peak CDI: ${result.strategy.winner_peak_cdi?.toFixed(1) ?? 'N/A'}`);
     console.log(`  Winner peak stage: ${result.strategy.winner_peak_stage ?? 'N/A'}`);
 
@@ -162,8 +170,57 @@ describe('DIAGNOSTIC — Human-readable recommendation output', () => {
     console.log(`  CM cards: ${result.trip_headline.cm_card_count}`);
 
     // ── TRAJECTORY INTERNALS: first 6 phases + last 6 phases ──
-    console.log('\n  ── TRAJECTORY PEEK (Pill 1) ──');
-    console.log('  idx  phase      t(s)    T_core   T_skin   S(W)    MR    HLR   CDI   stage              civd');
+    // ── COMFORT ANALYSIS: the signals below CDI that matter for ranking ──
+    const traj2 = result.four_pill.your_gear.trajectory;
+    const runPhases = traj2.filter(p => p.phase === 'run');
+    const liftPhases = traj2.filter(p => p.phase === 'lift');
+
+    const avgMR_run = runPhases.reduce((s,p) => s + p.MR, 0) / (runPhases.length || 1);
+    const avgMR_lift = liftPhases.reduce((s,p) => s + p.MR, 0) / (liftPhases.length || 1);
+    const peakMR = Math.max(...traj2.map(p => p.MR));
+    const endMR = traj2[traj2.length - 1]?.MR ?? 0;
+
+    const avgHLR_run = runPhases.reduce((s,p) => s + p.HLR, 0) / (runPhases.length || 1);
+    const avgHLR_lift = liftPhases.reduce((s,p) => s + p.HLR, 0) / (liftPhases.length || 1);
+    const peakHLR = Math.max(...traj2.map(p => p.HLR));
+
+    const startTcore = traj2[0]?.T_core ?? 37;
+    const endTcore = traj2[traj2.length - 1]?.T_core ?? 37;
+    const tcoreDrift = endTcore - startTcore;
+
+    const startTskin = traj2[0]?.T_skin ?? 33;
+    const endTskin = traj2[traj2.length - 1]?.T_skin ?? 33;
+
+    // civd HIGH means h_tissue = 5.0 (constricted), low = 9.0 (dilated)
+    const constrictedPhases = traj2.filter(p => p.h_tissue === 5.0).length;
+    const pctConstricted = (constrictedPhases / traj2.length * 100).toFixed(0);
+
+    console.log('\n  ── COMFORT ANALYSIS (the signals CDI doesn\'t see) ──');
+    console.log(`  MR:     avg run=${avgMR_run.toFixed(1)}  avg lift=${avgMR_lift.toFixed(1)}  peak=${peakMR.toFixed(1)}  end=${endMR.toFixed(1)}`);
+    console.log(`  HLR:    avg run=${avgHLR_run.toFixed(1)}  avg lift=${avgHLR_lift.toFixed(1)}  peak=${peakHLR.toFixed(1)}`);
+    console.log(`  T_core: ${startTcore.toFixed(2)} → ${endTcore.toFixed(2)}  (drift=${tcoreDrift.toFixed(2)}°C)`);
+    console.log(`  T_skin: ${startTskin.toFixed(2)} → ${endTskin.toFixed(2)}°C`);
+    console.log(`  Vasoconstriction: ${pctConstricted}% of phases constricted (civd HIGH)`);
+    console.log('');
+    console.log('  ── INTERPRETATION ──');
+    if (peakMR > 5) console.log(`  ⚠ MR peaks at ${peakMR.toFixed(1)}: layers substantially saturated — damp feeling, evaporative chill`);
+    else if (peakMR > 3) console.log(`  • MR peaks at ${peakMR.toFixed(1)}: layers absorbing but manageable`);
+    else console.log(`  ✓ MR stays below 3: layers managing sweat well`);
+
+    if (avgHLR_lift > 5) console.log(`  ⚠ Lift HLR averages ${avgHLR_lift.toFixed(1)}: cold exposure on lifts creating sustained discomfort`);
+    else if (avgHLR_lift > 3) console.log(`  • Lift HLR averages ${avgHLR_lift.toFixed(1)}: noticeable chill on lifts, recoverable`);
+    else console.log(`  ✓ Lift HLR averages ${avgHLR_lift.toFixed(1)}: comfortable on lifts`);
+
+    if (Math.abs(tcoreDrift) > 0.4) console.log(`  ⚠ T_core drift ${tcoreDrift.toFixed(2)}°C: thermoregulation working hard`);
+    else if (Math.abs(tcoreDrift) > 0.2) console.log(`  • T_core drift ${tcoreDrift.toFixed(2)}°C: compensation engaged`);
+    else console.log(`  ✓ T_core stable (drift ${tcoreDrift.toFixed(2)}°C): minimal thermoregulatory stress`);
+
+    if (parseInt(pctConstricted) > 50) console.log(`  ⚠ Vasoconstricted ${pctConstricted}% of trip: peripheral cooling (cold fingers/toes likely)`);
+    else console.log(`  • Vasoconstricted ${pctConstricted}% of trip`);
+    console.log('');
+
+    console.log('  ── TRAJECTORY PEEK (Pill 1) ──');
+    console.log('  idx  phase      t(s)    T_core   T_skin   S(W)    MR    HLR   CDI   stage              civd  TSENS');
     const traj = result.four_pill.your_gear.trajectory;
     const showIndices = [0, 1, 2, 3, 4, 5, traj.length-6, traj.length-5, traj.length-4, traj.length-3, traj.length-2, traj.length-1];
     for (const idx of showIndices) {
@@ -171,7 +228,7 @@ describe('DIAGNOSTIC — Human-readable recommendation output', () => {
       const p = traj[idx]!;
       const civd = p.h_tissue === 5.0 ? 'HIGH' : 'low';
       console.log(
-        `  ${String(idx).padStart(3)}  ${p.phase.padEnd(10)} ${String(p.t).padStart(6)}  ${p.T_core.toFixed(2).padStart(6)}  ${p.T_skin.toFixed(2).padStart(6)}  ${p.S.toFixed(0).padStart(6)}  ${p.MR.toFixed(1).padStart(4)}  ${p.HLR.toFixed(1).padStart(4)}  ${p.CDI.toFixed(1).padStart(4)}  ${p.clinical_stage.padEnd(18)} ${civd}`
+        `  ${String(idx).padStart(3)}  ${p.phase.padEnd(10)} ${String(p.t).padStart(6)}  ${p.T_core.toFixed(2).padStart(6)}  ${p.T_skin.toFixed(2).padStart(6)}  ${p.S.toFixed(0).padStart(6)}  ${p.MR.toFixed(1).padStart(4)}  ${p.HLR.toFixed(1).padStart(4)}  ${p.CDI.toFixed(1).padStart(4)}  ${p.clinical_stage.padEnd(18)} ${civd}  TSENS=${p.TSENS.toFixed(2).padStart(5)}`
       );
     }
     console.log('');

@@ -94,7 +94,7 @@ export type { EpocParamsResult } from './epoc.js';
 
 // Session 9a — cold physiology
 export {
-  civdProtectionFactor,
+  civdProtectionFactor, civdProtectionFromSkin,
   shiveringBoost,
   computeHLR,
 } from './cold_physiology.js';
