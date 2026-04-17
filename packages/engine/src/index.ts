@@ -247,3 +247,5 @@ export type {
   EpocState,
   PackState,
 } from './types.js';
+
+export { identifyCriticalMoments, buildStrategyWindows, MAX_CRITICAL_MOMENTS } from './scheduling/index.js';

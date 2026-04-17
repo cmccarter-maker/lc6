@@ -37,6 +37,7 @@ import type {
   StageDetectionInput,
 } from './types.js';
 
+import { identifyCriticalMoments, buildStrategyWindows } from './scheduling/index.js';
 import { validate } from './validate.js';
 
 // Moisture — THE single source of truth for MR (Cardinal Rule #3)
@@ -244,26 +245,36 @@ export function evaluate(input: EngineInput): EngineOutput {
     }
   }
 
-  // ── Step 6: Four-pill comparison ────────────────────────
+  // ── Step 6: Four-pill comparison with PHY-072 precognitive CMs ────────
   // Pill 1: User gear, reactive venting
-  // Pill 2: User gear + thermal pacing (TODO: vent scheduling)
+  // Pill 2: User gear + proactive CMs/windows (PHY-072)
   // Pill 3: Optimal gear (winner), reactive venting
-  // Pill 4: Optimal gear + thermal pacing (TODO: vent scheduling)
+  // Pill 4: Optimal gear + proactive CMs/windows (PHY-072)
   const pacingPill: PillResult = {
     ...userResult,
     pill_id: 'pacing',
     uses_pacing: true,
-    // TODO: Re-evaluate with proactive vent schedule once vent scheduling is implemented.
-    // For now, same trajectory as Pill 1 but flagged as pacing.
   };
 
   const optimalPill: PillResult = winnerResult
     ? { ...winnerResult, pill_id: 'optimal_gear' }
-    : { ...userResult, pill_id: 'optimal_gear' }; // No candidates → user gear is "optimal"
+    : { ...userResult, pill_id: 'optimal_gear' };
 
   const bestOutcomePill: PillResult = winnerResult
     ? { ...winnerResult, pill_id: 'best_outcome', uses_pacing: true }
     : { ...userResult, pill_id: 'best_outcome', uses_pacing: true };
+
+  // ── PHY-072: Precognitive Critical Moments + Strategy Windows ──
+  // Run optimizer against Pill 1 (user's gear, reactive) — this is the
+  // trajectory the user will experience without intervention. CMs identify
+  // the <=3 pivotal actions that prevent cumulative damage. Strategy
+  // Windows provide 3-5 coherent browseable guidance blocks.
+  //
+  // Budget is enforced inside identifyCriticalMoments (slice to top 3).
+  // For adequate gear, expect 0 CMs (silent trust); for marginal kits,
+  // expect 1-2 targeted preventive alerts.
+  const criticalMoments = identifyCriticalMoments(userResult.trajectory);
+  const strategyWindows = buildStrategyWindows(userResult.trajectory);
 
   const fourPill: FourPill = {
     your_gear: userResult,
@@ -301,6 +312,8 @@ export function evaluate(input: EngineInput): EngineOutput {
     fall_in: null,    // Deferred per Architecture §4.3
     sleep_system: null, // Deferred per Architecture §4.3
     engine_version: ENGINE_VERSION,
+    critical_moments: criticalMoments,
+    strategy_windows: strategyWindows,
   };
 }
 

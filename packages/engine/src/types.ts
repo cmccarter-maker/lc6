@@ -432,6 +432,45 @@ export interface SleepSystemOverlay {
 // ── EngineOutput — THE canonical data structure ─────────
 // Working Agreement v3 Rule #3.
 
+/**
+ * PHY-072: Precognitive critical moment — pivotal intervention with proven effect.
+ * Max 3 per trip/segment. Selected by preventable_damage × severity_multiplier.
+ * Grounded in alarm fatigue research: every firing must be actionable AND pivotal.
+ */
+export interface CriticalMoment {
+  /** Seconds into trip where the user should act */
+  t_trigger: number;
+  /** Phase index in the trajectory */
+  phase_index: number;
+  /** Action type */
+  action: 'vent_open' | 'vent_close' | 'break' | 'layer_adjust';
+  /** User-facing message (concise, actionable) */
+  message: string;
+  /** What this prevents (for diagnostics/display) */
+  prevents: 'MR_cascade' | 'CDI_5_impairment' | 'CDI_4_intensifying' | 'sustained_discomfort';
+  /** Computed damage prevented (for ranking) */
+  preventable_damage: number;
+  /** Estimated effect on trajectory metrics */
+  estimated_effect: {
+    mr_reduction: number;
+    cdi_reduction: number;
+    trip_recovered: boolean;
+  };
+}
+
+/**
+ * PHY-072: Strategy window — 60-120 min coherent guidance block.
+ * 3-5 per trip. Browseable, not alarm-fired.
+ */
+export interface StrategyWindow {
+  t_start: number;
+  t_end: number;
+  /** Coherent single-message guidance for this window */
+  message: string;
+  /** Dominant thermal regime for this window */
+  regime: 'running_warm' | 'running_cool' | 'sweat_peak' | 'recovery' | 'neutral';
+}
+
 export interface EngineOutput {
   trip_headline: TripHeadline;
   four_pill: FourPill;
@@ -440,6 +479,10 @@ export interface EngineOutput {
   fall_in: FallInOverlay | null;
   sleep_system: SleepSystemOverlay | null;
   engine_version: string;
+  /** PHY-072: Pivotal interventions (max 3). Red-diamond forced view in UI. */
+  critical_moments: CriticalMoment[];
+  /** PHY-072: 3-5 coherent time-block guidance windows. Browseable in UI. */
+  strategy_windows: StrategyWindow[];
 }
 
 
