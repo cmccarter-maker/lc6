@@ -33,7 +33,9 @@ const SKIING_GEAR_DB: RawGearDB = {
       {brand:"Arc'teryx",model:"Kyanite LT Hoody",price:175,tempRange:[15,45],breathability:8,windResist:5,weight:"mid",packable:false,warmthRatio:8,waterproof:0,moisture:7,fit:{skiing:9,snowboarding:9}},
       {brand:"Norrøna",model:"Falketind Warm1 Stretch",price:189,tempRange:[15,45],breathability:9,windResist:5,weight:"light",packable:true,warmthRatio:8,waterproof:0,moisture:8,fit:{skiing:10}},
       {brand:"Mountain Hardwear",model:"Polartec Power Grid",price:130,tempRange:[15,45],breathability:9,windResist:4,weight:"light",packable:true,warmthRatio:7,waterproof:0,moisture:8,fit:{skiing:8}},
-      // Insulative-class (warmthRatio >= 8 → slot = insulative)
+    ],
+    // PHY-GEAR-01 v2: puffy/insulation products live in their own bucket
+    insulation: [
       {brand:"Arc'teryx",model:"Cerium LT Hoody",price:380,tempRange:[-10,35],breathability:5,windResist:6,weight:"ultralight",packable:true,warmthRatio:9,waterproof:0,moisture:3,fit:{skiing:9,snowboarding:8}},
       {brand:"Patagonia",model:"Nano Puff Hoody",price:279,tempRange:[0,45],breathability:7,windResist:7,weight:"light",packable:true,warmthRatio:8,waterproof:1,moisture:5,fit:{skiing:8,snowboarding:8}},
       {brand:"Rab",model:"Microlight Alpine",price:300,tempRange:[-15,30],breathability:5,windResist:7,weight:"light",packable:true,warmthRatio:9,waterproof:1,moisture:3,fit:{skiing:9}},
@@ -94,11 +96,11 @@ describe('Gear adapter — convertGearDB', () => {
     }
   });
 
-  it('mid_layer items with warmthRatio >= 8 get slot = insulative', () => {
+  it('upper.insulation items get slot = insulative (PHY-GEAR-01 v2 strict routing)', () => {
     const items = convertGearDB(SKIING_GEAR_DB, { activity: 'skiing' });
     const insulative = items.filter(i => i.slot === 'insulative');
     expect(insulative.length).toBeGreaterThan(0);
-    // Arc'teryx Cerium and Rab Microlight should be insulative
+    // Arc'teryx Cerium and Rab Microlight live in upper.insulation bucket
     const ceriumOrRab = insulative.filter(i => i.name.includes('Cerium') || i.name.includes('Microlight'));
     expect(ceriumOrRab.length).toBeGreaterThan(0);
   });
@@ -106,13 +108,15 @@ describe('Gear adapter — convertGearDB', () => {
   it('catalogSummary shows coverage across slots', () => {
     const items = convertGearDB(SKIING_GEAR_DB, { activity: 'skiing', minFitScore: 7 });
     const summary = catalogSummary(items);
-    expect(summary['base']).toBeGreaterThan(0);
-    expect(summary['mid']).toBeGreaterThan(0);
-    expect(summary['shell']).toBeGreaterThan(0);
-    expect(summary['legwear']).toBeGreaterThan(0);
-    expect(summary['footwear']).toBeGreaterThan(0);
-    expect(summary['headgear']).toBeGreaterThan(0);
-    expect(summary['handwear']).toBeGreaterThan(0);
+    // PHY-GEAR-01 v2: catalogSummary returns structured { bySlot, bySubslot, byConfidence, byFiber }
+    expect(summary.bySlot['base']).toBeGreaterThan(0);
+    expect(summary.bySlot['mid']).toBeGreaterThan(0);
+    expect(summary.bySlot['insulative']).toBeGreaterThan(0);
+    expect(summary.bySlot['shell']).toBeGreaterThan(0);
+    expect(summary.bySlot['legwear']).toBeGreaterThan(0);
+    expect(summary.bySlot['footwear']).toBeGreaterThan(0);
+    expect(summary.bySlot['headgear']).toBeGreaterThan(0);
+    expect(summary.bySlot['handwear']).toBeGreaterThan(0);
   });
 
   it('product names are preserved through conversion', () => {

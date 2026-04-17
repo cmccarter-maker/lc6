@@ -1,5 +1,8 @@
 // LC6 gear module — adapters for LC5 gear DB.
-// Session 10.
+// PHY-GEAR-01 v2 (Session 11).
 
-export { convertGearDB, catalogSummary } from './adapter.js';
-export type { RawGearItem, RawGearDB } from './adapter.js';
+export { convertGearDB, catalogSummary, inferFiber, imputeAttributes } from './adapter.js';
+export type {
+  RawGearItem, RawGearDB, RawGearSleepItem, RawGearImmersionItem,
+  ConvertOptions,
+} from './adapter.js';
