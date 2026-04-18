@@ -140,6 +140,7 @@
 |---|---|---|---|
 | PHY-NAN-HARDENING | MEDIUM | Open | Synthetic gear ensembles produce MR=NaN in cyclic path (real gear doesn't hit); defensive boundary hardening (originally FUTURE_WORK P2 + Session 11 handoff OQ #2) |
 | UI-CM-DISPLAY | LOW (until UI phase) | Open | PHY-072 critical_moments + strategy_windows never wired to display (FUTURE_WORK P4) |
+| PHY-TEST-VALIDATION-AUDIT | MEDIUM | Open | Raised S15. For each physics-output test assertion, verify expected value was hand-computed (not captured snapshot). See Section J.4. Escalates to HIGH if S16 §7 reveals systemic divergence OR count of `[CAPTURED-...-UNCONFIRMED]` tags > 20. |
 
 ### B.12 Session 13/14/15 state items
 
@@ -360,3 +361,113 @@ The tracker's value equals the discipline of updating it. Failure modes to watch
 *Document created Session 13, 2026-04-17 (pending commit).*
 *Triggered by: "we are not moving forward on anything until we know what circle backs are out there and how we intend to track."*
 *Section A 3 items, Section B 52 items, Section C 13 items, Section D 4 items, Section F 8 items.*
+
+---
+
+## Section J: Testing Discipline
+
+> **Added Session 15 (2026-04-18) after §7 gate lesson. See DEC-S15-GATE-SKIP.**
+
+This section captures how we validate physics calculations going forward. Canonical reference for all future sessions, all future specs.
+
+### J.1 Forward Progress (every new physics spec and test)
+
+Every spec that changes physics output MUST include these numbered sections:
+
+**§Downstream Impact** (model on PHY-PERCEIVED-MR-REDESIGN v1 §6):
+- Enumerate all consumers of the output being changed
+- Classify each threshold as physics-grounded vs calibrated
+- Audit consumers BEFORE writing code, not after
+
+**§Hand-Computed Reference Scenarios** (model on PHY-PERCEIVED-MR-REDESIGN v1 §7):
+- Concrete scenarios with physics expectations stated in the spec
+- Hand computation (or instrumented capture + validation) done BEFORE test updates
+- Engine output must match hand computation OR one is wrong and both reconciled
+
+**§Implementation Order:**
+- Explicit sequence where audit and hand-computation are GATES, not steps
+- "Do not proceed to test updates until §N is cleared with evidence"
+
+### J.2 Test Expected Value Discipline
+
+**For tests asserting physics output** (MR, CDI, HLR, trapped moisture, heat loss, sweat rate, skin temp, etc.):
+
+Rule: **Do not update expected values without hand-computed justification.** "Engine produces X now, let's match that" is a red flag and must be rejected.
+
+Acceptable sources for expected values:
+1. Hand-computed from physics formulas (with calculation trace documented)
+2. Captured from a published reference (ISO standard, peer-reviewed paper, validated dataset) with citation
+3. Captured from engine + cross-validated against (1) or (2) with evidence
+4. Captured from engine during §7-gated work where physics expectations were stated first and matched
+
+NOT acceptable:
+- "Engine used to produce X; now produces Y; update test to Y."
+- "This is what came out of the engine on day X."
+- Values with a [PHY-XXX] tag but no documented hand computation from session XXX.
+
+### J.3 Tag Convention for Test Assertions
+
+Going forward, physics-output test assertions use tags that signal validation status:
+
+| Tag | Meaning |
+|---|---|
+| `[PHY-SXX-VALIDATED]` | Hand-computed at session XX; physics trace in session ledger |
+| `[REF-<source>]` | From published reference (e.g., `[REF-ISO-7933-TableB2]`) |
+| `[CAPTURED-SXX]` | Engine snapshot from session XX; physics status UNVALIDATED |
+| `[SNAPSHOT]` | Structural regression lock-in, not physics-sensitive |
+
+Historical `[PHY-XXX]` tags without session ledger hand-computation evidence are treated as `[CAPTURED-PHY-XXX-UNCONFIRMED]` until audited.
+
+### J.4 Historical Audit (Opportunistic)
+
+We do NOT pause forward progress to audit Sessions 1-14 systematically. We audit as we touch.
+
+**When you touch a test file:**
+
+30-second classification per physics-output assertion:
+1. Does it have a tag? If no → add appropriate tag.
+2. If tag is `[PHY-XXX]`: check session XX ledger for hand-computation. If found → upgrade to `[PHY-XXX-VALIDATED]`. If not found → downgrade to `[CAPTURED-PHY-XXX-UNCONFIRMED]`.
+3. If test is in a test file being actively modified AND assertion is un-validated AND we're relying on it for correctness → hand-compute now OR flag with TODO-AUDIT comment.
+
+**Systematic audit trigger conditions** (escalates PHY-TEST-VALIDATION-AUDIT to HIGH):
+- Session 16's §7 work reveals old snapshots were wildly off from physics
+- A user-facing bug traces to an un-validated snapshot
+- Count of `[CAPTURED-...-UNCONFIRMED]` tags crosses 20
+
+Until triggered: MEDIUM priority, work opportunistically.
+
+### J.5 Exemptions (physics-derived but low audit burden)
+
+Not every assertion needs full hand-computation. These are acceptable with lower burden:
+
+- Formula-direct outputs with published reference: `duboisBSA(150) = 1.86 m²` (DuBois 1916). Cross-reference once; high confidence forever.
+- Magnus formula outputs: table cross-reference.
+- ISO standard outputs: standard reference cross-check.
+- Single-step arithmetic with cited inputs.
+
+The higher the COMPOSITION of physics (more intermediate steps feeding final output), the more rigorous the audit. `computePerceivedMR` composes ~60 upstream calculations → needs full §7-style trace. `duboisBSA` is one formula → published reference suffices.
+
+### J.6 Two-Lane Principle
+
+**Lane 1 (Forward):** Every new physics spec + test follows J.1 and J.2 gates.
+**Lane 2 (Historical):** Opportunistic audit per J.4 as we touch.
+
+Neither lane pauses the other. Progress and audit are parallel, not sequential. The only stops are when §-gated physics encounters its own gate (Session 15 halt pattern).
+
+### J.7 Enforcement
+
+**Session ritual (Section H) enforces Section J:**
+
+At session open: state today's target. If target includes physics code changes, state which spec §-gates apply.
+
+During session: if test expected values are being updated, state what evidence supports the new value (hand computation? published reference? §7-validated capture?). If none, halt.
+
+At session close: reconcile tag additions. Any new `[CAPTURED-]` tags = future audit load, tracked.
+
+**User challenge questions that catch drift:**
+- "Where did that expected value come from?"
+- "Is this from the spec's §7 scenarios or from captured engine output?"
+- "Does this spec have numbered gates before code updates?"
+- "Are we calibrating to known-wrong outputs or to physics truth?"
+
+These questions are the layer 2 defense. Memory #30 is the layer 1 persistence. Section J is the layer 3 documentation.
