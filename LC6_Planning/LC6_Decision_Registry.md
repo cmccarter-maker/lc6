@@ -77,3 +77,54 @@ deferred to Session 13 or later.
 - PHY-HUMID-VENT-REWRITE (_ventHum physics replacement)
 - PHY-HUMID-HUMMUL-CAL (empirical humMul derivation)
 - PHY-HUMID-EXCESS-CAL (empirical _excessRetention validation)
+
+
+## DEC-PHY-HUMID-01-CORRECTION — Session 12 post-ratification audit caught fudge factor
+**Status:** RATIFIED (v2 supersedes v1)
+**Date:** 2026-04-17 (Session 12, same session as v1 ratification)
+**Supersedes:** DEC-PHY-HUMID-01 (v1 ratification)
+**Spec:** LC6_Planning/specs/PHY-HUMID-01_Spec_v2_RATIFIED.md
+
+**Trigger:** After v1 was ratified and pushed (commit c5785c6), Christian
+pressed a question that forced a deeper audit: "If the inside of the shell
+can back-diffuse into the outermost layer, why is this water not trapped in
+the layering system?" This question revealed that v1's proposed
+`_excessRetention = 1.0 - _ambientMargin × 0.10` was a fudge factor.
+
+**Forensic audit findings:**
+
+The real bug at H3 is not a missing retention coefficient. It is MISROUTING.
+Three categories of moisture are currently treated identically when they
+have different physical origins and destinations:
+
+1. `_retainedCondensG` (vapor condensing at thermal boundary) — correctly
+   routed via `_condensWeights` and gated by `_netRetention`
+2. `_excessHr`, `_liftExcessG`, `_insensibleG` (liquid at skin) — incorrectly
+   gated by `_netRetention` AND routed via `_condensWeights`. Both are wrong
+   for liquid: gating zeros them at warm ambient, condens-weights misroutes
+   them to outer layers. Correct physics: route directly to `_layers[0]`
+   (base), let Washburn wicking redistribute outward.
+3. `_aHygro` (ambient vapor absorbed from outside) — currently DEAD CODE.
+   Computed at line 534 but never applied to layers. Correct physics: route
+   directly to `_layers[length-1]` (shell).
+
+**Cardinal Rule #1 corrections:**
+- REMOVED `_excessRetention` coefficient entirely (v1's error — never ships)
+- CANCELLED PHY-HUMID-EXCESS-CAL follow-up spec (no coefficient to derive)
+- All remaining constants cite published sources
+
+**Cardinal Rules preserved:**
+- #1: zero new calibration coefficients; the v1 fudge is withdrawn
+- #8: thermal engine still untouched this session (audit only)
+- #11: v2 ratified before any code is written
+- #14: audit was done before proposing — v1's error was caught through
+  deeper reading when Christian's question forced it
+
+**Process lesson:** Ratification in the same session as drafting is
+acceptable for narrow, well-understood fixes. For physics changes that
+touch the core engine, a forensic audit that traces every variable from
+source to output should precede ratification. v1's accelerated
+ratification bypassed that audit; v2 is the audited spec.
+
+**Follow-up:** Session 13 implements v2. No empirical calibration work
+required for PHY-HUMID-EXCESS-CAL (cancelled).

@@ -47,3 +47,25 @@ packages/engine/src/.
 - #8: thermal engine untouched
 - #11: no code without ratified spec — spec ratified, implementation deferred
 - #14: read before proposing — full inventory grep conducted before spec drafting
+
+
+## Session 12 continued — v2 RATIFIED, v1 SUPERSEDED (NO CODE CHANGES)
+**Date:** 2026-04-17
+
+**Audit session continuation.** No source code modified.
+
+**Files added (planning only):**
+- LC6_Planning/specs/PHY-HUMID-01_Spec_v2_RATIFIED.md
+
+**Files modified (planning only):**
+- LC6_Planning/specs/PHY-HUMID-01_Spec_v1_RATIFIED.md (SUPERSEDED banner added)
+- LC6_Planning/LC6_Spec_Registry.md (v1 SUPERSEDED, v2 added)
+- LC6_Planning/LC6_Decision_Registry.md (DEC-PHY-HUMID-01-CORRECTION)
+- LC6_Planning/LC6_Open_Issues_Ledger.md (EXCESS-CAL cancelled, 2 audit findings)
+- LC6_Planning/LC6_Session_Ledger.md (v2 correction entry)
+
+**Cardinal Rule compliance:**
+- #1: v1's _excessRetention fudge caught and removed before any code ships
+- #8: thermal engine still untouched
+- #11: v2 ratified before implementation
+- #14: forensic audit traced every moisture input from source to output

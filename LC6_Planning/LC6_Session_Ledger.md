@@ -48,3 +48,32 @@
 - Hand-computed verification per site per Cardinal Rule #8
 - Expected H3 post-fix: MR ≥ 3.5, CDI ≥ 3.0, stage in {heat_intensifying, heat_exhaustion_detected}
 - Non-regression gates on C1-C7 cold scenarios + H1-H5 hot scenarios
+
+
+## Session 12 — Post-ratification audit + v2 correction (same session)
+**Date:** 2026-04-17
+**Focus:** Forensic audit of PHY-HUMID-01 v1 prompted by Christian's question:
+"If the inside of the shell can back-diffuse into the outermost layer, why is
+this water not trapped in the layering system?"
+
+**Audit outcome:** v1 contained a fudge factor (`_excessRetention` with 0.10
+coefficient) that double-counted E_max. The real bug is misrouting, not a
+missing retention coefficient. Excess liquid sweat currently routes via
+condensation-weights (wrong for liquid) and is gated by condensation
+severity (wrong for uncompensable). Ambient hygroscopic absorption is dead
+code in the cyclic path.
+
+**Resolution:** PHY-HUMID-01 v2 RATIFIED, supersedes v1. v2 specifies three
+distinct routing paths:
+- Vapor condensation → `_condensWeights` (existing, correct)
+- Liquid at skin (_excessHr, _liftExcessG, _insensibleG) → `_layers[0]` direct
+- Ambient hygro (_aHygro) → `_layers[length-1]` direct (activates dead code)
+
+**Zero new calibration coefficients.** All retained constants cite published
+sources. `_excessRetention` fully withdrawn. PHY-HUMID-EXCESS-CAL cancelled.
+
+**Commit:** v2 spec ratified + v1 marked SUPERSEDED (retained for audit trail).
+
+**Handoff to Session 13:** Implement v2 via Chat-produced surgical scripts
+per Cardinal Rule #13. Hand-computed verification per site. Expected H3
+post-fix: MR in 5-8 range. No regression on cold scenarios.

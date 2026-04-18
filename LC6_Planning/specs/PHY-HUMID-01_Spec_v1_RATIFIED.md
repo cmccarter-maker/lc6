@@ -1,3 +1,14 @@
+> **⚠️ SUPERSEDED by v2 — 2026-04-17 (same session, post-audit)**
+>
+> This spec (v1) was ratified earlier in Session 12 but contained a physics error
+> caught during post-ratification forensic audit: the proposed `_excessRetention
+> = 1.0 - _ambientMargin × 0.10` was a fudge factor that double-counted E_max's
+> ambient effect. Forensic audit determined the correct fix is ROUTING, not
+> retention tuning. See PHY-HUMID-01_Spec_v2_RATIFIED.md for the physics-correct
+> specification. v1 is retained for audit trail visibility per Cardinal Rule #1.
+
+---
+
 # PHY-HUMID-01 v1 RATIFIED — Physics-Derived Moisture Accumulation in Warm/Humid Conditions
 
 **Status:** RATIFIED 2026-04-17 (Session 12, same session as draft — accelerated path)

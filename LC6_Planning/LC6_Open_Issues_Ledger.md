@@ -116,11 +116,33 @@ humMul (line 455): `1 + max(H-40, 0)/100 × 0.8`. Physiologically grounded
 calibration. Empirical derivation requires controlled compensatory-sweat-rate
 experiments vs ambient RH.
 
-### PHY-HUMID-EXCESS-CAL — Validate _excessRetention 0.10 skin-diffusion coefficient
-**Status:** Raised Session 12. Priority: Medium.
+### PHY-HUMID-EXCESS-CAL — ~~Validate _excessRetention 0.10 skin-diffusion coefficient~~
+**Status:** CANCELLED Session 12 (post-audit). The 0.10 coefficient was a v1 fudge factor, removed in v2. No coefficient to derive.
 
 PHY-HUMID-01 introduces `_excessRetention = 1.0 - _ambientMargin × 0.10`.
 The 0.10 coefficient represents skin-level diffusion escape of uncompensable
 sweat. Empirical validation via wet-skin vapor transport experiments
 (controlled RH, vapor pressure gradient measurements, sweat accumulation
 gravimetric tracking).
+
+
+## Session 12 audit additions (post-v2 ratification, 2026-04-17)
+
+### PHY-STEADY-STATE-LAYERS — Linear/steady-state path lacks per-layer buffer model
+**Status:** Raised Session 12 (audit finding). Priority: Medium.
+
+The linear/steady-state fallback path (calc_intermittent_moisture.ts line
+1057+) uses a flat `cumMoisture` bucket rather than the per-layer cascade
+architecture. Activities routed through steady-state (some camping,
+stationary low-exertion) don't benefit from PHY-048's saturation cascade.
+Will affect warm-humid stationary scenarios (e.g., Outer Banks fishing).
+Not urgent — cyclic path handles active scenarios.
+
+### PHY-HUMID-DEAD-CODE-CLEANUP — Remove orphaned phaseData block
+**Status:** Raised Session 12 (audit finding). Priority: Low.
+
+Lines 516-536 compute `phaseData` and `cycleNet` which are never consumed.
+Legacy from earlier architecture where `phaseSweatRate` drove accumulation.
+Superseded by in-loop Gagge physics (lines 672-711) but not deleted.
+Cleanup only — no physics implication once v2 wires `_aHygro` correctly.
+Can be done as part of v2 implementation in Session 13.
