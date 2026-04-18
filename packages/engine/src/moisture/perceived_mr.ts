@@ -1,3 +1,47 @@
+// =============================================================================
+// perceived_mr.ts — CALIBRATION-ANCHORED per Session 17 closure
+// =============================================================================
+//
+// This file contains three calibration constants (PERCEIVED_WEIGHTS,
+// COMFORT_THRESHOLD, and the 7.2 output scale). Session 13's audit
+// (LC6_Planning/audits/MOISTURE_OUTPUT_AUDIT_S13.md) flagged these as fudge
+// factors. Session 17 closure reclassified them as CALIBRATIONS — tuned
+// constants anchored to documented design principles. Retained accordingly.
+//
+// CALIBRATION ANCHORS:
+//
+//   PERCEIVED_WEIGHTS [3, 2, 1.5, 1]:
+//     Direction (base > mid > outer) anchored to Fukazawa 2003 + Zhang 2002:
+//     skin wetness perception correlates with next-to-skin contact, not
+//     deeper layer saturation. The specific ratios are tuned calibration
+//     (tracked as PHY-WEIGHTS-CAL for future Havenith 2002 derivation).
+//
+//   COMFORT_THRESHOLD = 40 mL:
+//     Fukazawa 2003 wetness perception onset at ~50 g/m², applied to an
+//     estimated ~0.8 m² torso base-layer contact area. Torso-contact
+//     estimate tracked as PHY-COMFORT-THRESHOLD-CAL.
+//
+//   7.2 output scale (see return statement below):
+//     FECHNER-ANCHORED OUTPUT BUDGET. A coherent-saturated ensemble
+//     (base + mid fully at comfort threshold, no outer saturation) lands
+//     at MR ~6 — the inflection point where applySaturationCascade kicks
+//     in. The 6-10 band is reserved for the cascade regime where fabric
+//     phase-transitions from insulator to conductor (water ~23x more
+//     thermally conductive than air). Perception plateaus in the cascade
+//     region while objective danger accelerates — Fechner's Law applied
+//     to wetness. See TA v5 §3.5 and saturation_cascade.html.
+//
+//   VALIDATION ANCHOR: TA v5 documents a 95% RH / 20°F Rocky Mountain NP
+//   stress test producing MR=4.3 (moderate, not critical). This is
+//   physically correct: Clausius-Clapeyron limits absolute moisture at
+//   cold temperature. Any redesign of this file must preserve that anchor.
+//
+// DO NOT REMOVE THE 7.2 OR THE CASCADE TRANSFORM without an amendment
+// that provides a replacement Fechner-based output budget. Session 15's
+// REDESIGN attempt removed them without replacement and caused MR to pin
+// at 10 for any meaningful sweating. See LC6_Planning/LC6_REDESIGN_v1_Closure.md.
+// =============================================================================
+
 // Perceived moisture risk — skin-weighted layer saturation perception.
 // Ported VERBATIM from LC5 risk_functions.js (April 2026 audit baseline).
 // Per Cardinal Rule #8: do not modify without Chat-produced spec amendment.

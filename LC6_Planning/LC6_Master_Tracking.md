@@ -11,19 +11,31 @@
 
 ---
 
-## Status as of Session 15 (§7 gate halt)
+<!-- S17-RECONCILIATION-APPLIED -->
+## Status as of Session 17 (REDESIGN reverted, back to clean baseline)
 
-**Branch:** `session-13-phy-humid-v2` (S13/S14 commits 4098816 + 79b5623 pushed; S15 code WIP, NOT committed)
-**Working tree dirty (preserved for S16):**
-- `packages/engine/src/moisture/perceived_mr.ts` (REDESIGN v1 implemented per spec)
-- `packages/engine/src/moisture/calc_intermittent_moisture.ts` (Phase 2+3 + bsa threading)
-- `packages/engine/tests/moisture/perceived_mr.test.ts` (rewritten for v1 math; passing)
+**Branch:** `session-13-phy-humid-v2`
+**Working tree:** clean post-revert, then 4 doc/tracker edits staged for S17 commit
+**Test count:** 636/636 passing (11 S15-added tests reverted with the test file)
 
-**Test count:** 634/647 passing. 13 failures in `calc_intermittent_moisture.test.ts` — stale PHY-071 snapshot values against new math. **DO NOT update these expected values** until §7 hand-computations complete (S16).
+**Session 17 outcome:**
+- PHY-PERCEIVED-MR-REDESIGN v1 REVERTED per closure doc (`LC6_Planning/LC6_REDESIGN_v1_Closure.md`)
+- 7.2 output budget + saturation cascade restored
+- COMFORT_THRESHOLD = 40 mL restored
+- Calibration documentation added as header comment block in `perceived_mr.ts`
+- Spec v1 marked SUPERSEDED BY REVERSION
+- Section C of this tracker reclassified: Calibrations (retained + anchored) vs Fudges (replacement-tracked)
+- Section B.12 S15 inflight items all RESOLVED
 
-**Session 15 halt reason:** Proceeded toward test expectation updates without first completing spec §7 hand-computation gate. User halted: "are we comparing expected results to locked-in results we know are incorrect?" The 13 failing snapshot values were captured from old 7.2-fudge-scaled engine; calibrating new engine to match them would preserve the fudge under a cleaner surface. §7 exists to prevent exactly this.
+**Meta-rule adopted S17:** Sessions ship commits. If no commit by hour 2, stop and reassess. Sessions 13-16 (4 consecutive no-commit halts on spec proliferation) were the anti-pattern; S17 breaks it.
 
-**Session 16 target:** Complete §7 hand-computations for 4 reference scenarios (Breck 16°F, cycling 85°F, hike 55°F, H3 75°F/90%RH) using instrumented reference capture per Session 15 method decision. Only after §7 cleared with evidence: update test expectations and commit combined REDESIGN + Phase 2+3.
+**Forward plan:**
+- **S18:** Scenario smoke test (Breck snowboarding, day hike, backpacking, fishing) against current engine. Confirm TA v5 anchor (MR=4.3 for 95% RH / 20°F stress test) holds.
+- **S19+:** One substantive item per session. Candidates: Phase 1-Corrective architecture, IREQ Block 2, genuine staircase fudges (Gagge/Minetti/VPD), Layer 2 pacing DP.
+
+### Historical record — Session 15 (§7 gate halt, now superseded)
+
+Session 15 halted at spec §7 gate while implementing REDESIGN v1. Retained here as historical record. S17 reversion resolves all S15 inflight items — see Section B.12.
 
 ---
 
@@ -33,7 +45,7 @@
 |---|---|---|---|---|---|
 | PHY-GEAR-01 | v2 | RATIFIED + IMPLEMENTED | S11 | specs/PHY-GEAR-01_Spec_v2_RATIFIED.md | 1,627-product catalog live |
 | PHY-HUMID-01 | v2 | RATIFIED, PARTIALLY IMPLEMENTED | S12 | specs/PHY-HUMID-01_Spec_v2_RATIFIED.md | Phase 1 shipped e9d56b5; Phase 2+3 held (working tree dirty) |
-| PHY-PERCEIVED-MR-REDESIGN | v1 | RATIFIED | S14 | specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v1_RATIFIED.md | v1 ratified S14; implementation blocked on downstream audit + hand-computed reference scenarios |
+| PHY-PERCEIVED-MR-REDESIGN | v1 | **SUPERSEDED BY REVERSION (S17)** | S14 | specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v1_RATIFIED.md | Reverted Session 17. Retained output layer (7.2 + cascade + 40mL threshold) reclassified as calibration. See `LC6_Planning/LC6_REDESIGN_v1_Closure.md`. |
 
 ---
 
@@ -142,15 +154,17 @@
 | UI-CM-DISPLAY | LOW (until UI phase) | Open | PHY-072 critical_moments + strategy_windows never wired to display (FUTURE_WORK P4) |
 | PHY-TEST-VALIDATION-AUDIT | MEDIUM | Open | Raised S15. For each physics-output test assertion, verify expected value was hand-computed (not captured snapshot). See Section J.4. Escalates to HIGH if S16 §7 reveals systemic divergence OR count of `[CAPTURED-...-UNCONFIRMED]` tags > 20. |
 
-### B.12 Session 13/14/15 state items
+### B.12 Session 13/14/15 state items — ALL RESOLVED S17
 
-| ID | Priority | Status | Notes |
-|---|---|---|---|
-| S13-PHASE-2-3-DIRTY | HIGH | S15: code implemented, §7 gate blocking commit | Phase 2+3 + bsa threading now in working tree (calc_intermittent_moisture.ts, perceived_mr.ts, perceived_mr.test.ts all modified). Cannot commit until §7 hand-computations done. |
-| S15-SPEC-SECTION-7-SKIPPED | HIGH | Open (process failure) | **S15 proceeded to test-expectation updates without completing spec §7 hand-computations.** User caught mid-session with "are we comparing expected results to locked-in results we know are incorrect?" — halted before committing fudge-calibrated expected values. S16 MUST complete §7 before any test assertion changes. |
-| S15-BSA-THREADING-INFLIGHT | HIGH | Open | `computePerceivedMR(_, _bsa)` threading applied at calc_intermittent_moisture.ts lines 931, 973, 992. Not committed. |
-| S15-PERCEIVED-MR-REDESIGN-INFLIGHT | HIGH | Open | REDESIGN v1 code in `perceived_mr.ts` (additive model, Rule of 9's, BSA-scaled Fukazawa). Test file rewritten. Not committed pending §7. |
-| S15-DOWNSTREAM-THRESHOLDS-PENDING | MEDIUM | Open | Audit found 5 threshold sites vs spec §6's expected 2 (evaluate.ts:741, 744, 808, 813 + precognitive_cm.ts:35 MR_CASCADE_THRESHOLD). Not evaluated against new MR distribution yet. Spec §6 gate incomplete. |
+All items below closed by Session 17 reversion. Retained here for audit trail; moved to Section F on next tracker reconciliation pass.
+
+| ID | S17 Resolution |
+|---|---|
+| S13-PHASE-2-3-DIRTY | RESOLVED. Phase 2+3 code reverted via `git checkout HEAD`. PHY-HUMID-01 v2 spec itself remains RATIFIED for future dedicated implementation session. |
+| S15-SPEC-SECTION-7-SKIPPED | RESOLVED. Spec §7 gate obviated by reversion of the spec it gated. Process lesson codified as meta-rule: "sessions ship commits; if no commit by hour 2, stop and reassess." |
+| S15-BSA-THREADING-INFLIGHT | RESOLVED. BSA threading reverted with calc_intermittent_moisture.ts restoration. No longer relevant post-revert. |
+| S15-PERCEIVED-MR-REDESIGN-INFLIGHT | RESOLVED via reversion. Spec v1 marked SUPERSEDED BY REVERSION per closure doc. |
+| S15-DOWNSTREAM-THRESHOLDS-PENDING | RESOLVED. Pre-REDESIGN MR distribution restored; downstream thresholds (evaluate.ts:741, 744, 808, 813 + precognitive_cm.ts:35) still match the scale they were originally calibrated against. |
 
 ### B.13 LC4 carryforward (LC6 will eventually include UI per Session 13 scope decision)
 
@@ -162,23 +176,35 @@
 
 ---
 
-## Section C: Known Fudge Factors / Cardinal Rule #1 Candidates
+## Section C: Constants Audit — Calibrations vs Fudges
 
-| Name | File:Line | Value | Status | Spec Addressing |
+**S17 reclassification:** Section C is split into two categories per S17 closure.
+**Calibrations** are tuned constants anchored to a documented design principle (retained, documented inline in code).
+**Fudges** are arbitrary constants without a principle anchor (replacement specs tracked).
+Cardinal Rule #1 is strengthened by this distinction, not weakened.
+
+### C.1 — Calibrations (retained with documented anchor)
+
+| Name | File:Line | Value | Anchor | S17 Action |
 |---|---|---|---|---|
-| PERCEIVED_WEIGHTS | moisture/perceived_mr.ts:15 | [3, 2, 1.5, 1] | FUDGE (direction cited, ratios uncited) | PHY-PERCEIVED-MR-REDESIGN |
-| COMFORT_THRESHOLD | moisture/perceived_mr.ts:24 | 40 mL uniform | PARTIALLY CITED (Fukazawa 50g/m² yes; 0.8m² contact area no; not BSA-scaled) | PHY-PERCEIVED-MR-REDESIGN |
-| MR output scaling | moisture/perceived_mr.ts:78 | × 7.2 | FUDGE (no citation) | PHY-PERCEIVED-MR-REDESIGN |
-| Evaporation rate cap | TBD (audit needed) | 0.85 | CALIBRATION per Sci Foundations §3.3 | PHY-EVAP-CAP-0.85 |
-| Humidity floor | TBD (audit needed) | (H-60)/40 × 4.0 | CALIBRATION per Sci Foundations §3.4 | PHY-HUMIDITY-FLOOR |
-| Cold penalty | TBD (audit needed) | trapped×5 + (40-T)/10×f_suit | CALIBRATION per Sci Foundations §3.2 | PHY-COLD-PENALTY |
-| Saturation cascade curve | moisture/saturation_cascade.ts | 6 cutoff + 6+4×(1-(1-(raw-6)/4)²) | CALIBRATION per Sci Foundations §3.5 | PHY-COMPRESSION-CURVE |
-| rawTempMul staircase | moisture/calc_intermittent_moisture.ts:453 | 5-step temperature multiplier | No citation | PHY-SWEAT-UNIFICATION |
-| _gradeMul staircase | moisture/calc_intermittent_moisture.ts:378 | 4-step grade multiplier | Minetti replacement pending | PHY-GRADE-01 |
-| _ventHum staircase | moisture/calc_intermittent_moisture.ts:825 | 3-step humidity factor | VPD replacement pending | PHY-HUMID-VENT-REWRITE |
-| humMul formula | moisture/calc_intermittent_moisture.ts:455 | 1 + max(H-40,0)/100×0.8 | Physiologically grounded; 40% knee + 0.8 slope are calibration | PHY-HUMID-HUMMUL-CAL |
-| Vent constants | moisture/calc_intermittent_moisture.ts:832-836 | 0.15, 0.3, 5 | No citation | PHY-VENT-CONSTANTS |
-| Vasoconstriction threshold | iterativeTSkin (heat_balance/) | 33.0°C | Citation ambiguity | PHY-VASO-CITATION |
+| MR output scaling | moisture/perceived_mr.ts | × 7.2 | Fechner output budget per TA v5 §3.5; 7.2 lands coherent-saturated ensemble at MR≈6 (cascade inflection) | CALIBRATION-ANCHORED header added S17 |
+| COMFORT_THRESHOLD | moisture/perceived_mr.ts | 40 mL | Fukazawa 2003 (50 g/m²) × ~0.8 m² torso contact | CALIBRATION-ANCHORED header added S17 |
+| Saturation cascade curve | moisture/saturation_cascade.ts | 6 cutoff + 6+4×(1-(1-(raw-6)/4)²) | Three-regime design per TA v5 §3.5 + saturation_cascade.html | Retained |
+| Evaporation rate cap | TBD (audit) | 0.85 | Minimum-retention floor per TA v5 §3.3 | Pending per-constant inline comment (future audit) |
+| Humidity floor | TBD (audit) | (H-60)/40 × 4.0 | Cooper Landing anchor per TA v5 §3.4 | Pending per-constant inline comment (future audit) |
+| Cold penalty | TBD (audit) | trapped×5 + (40-T)/10×f_suit | Wilderness-medicine danger-tier anchor per TA v5 §3.2 | Pending per-constant inline comment (future audit) |
+| humMul formula | moisture/calc_intermittent_moisture.ts:455 | 1 + max(H-40,0)/100×0.8 | Nielsen & Endrusick 1990 direction; 40%/0.8 are calibration | Anchor direction cited; specific values tracked as PHY-HUMID-HUMMUL-CAL |
+
+### C.2 — Fudges (replace via physics specs)
+
+| Name | File:Line | Value | Status | Replacement Spec |
+|---|---|---|---|---|
+| PERCEIVED_WEIGHTS | moisture/perceived_mr.ts | [3, 2, 1.5, 1] | FUDGE (direction cited — Fukazawa/Zhang — but specific ratios uncited) | PHY-WEIGHTS-CAL (future; Havenith 2002-derived) |
+| rawTempMul staircase | moisture/calc_intermittent_moisture.ts:453 | 5-step temperature multiplier | FUDGE (no anchor) | PHY-SWEAT-UNIFICATION (Gagge) |
+| _gradeMul staircase | moisture/calc_intermittent_moisture.ts:378 | 4-step grade multiplier | FUDGE (no anchor) | PHY-GRADE-01 (Minetti GAP polynomial) |
+| _ventHum staircase | moisture/calc_intermittent_moisture.ts:825 | 3-step humidity factor | FUDGE (no anchor) | PHY-HUMID-VENT-REWRITE (VPD-derived) |
+| Vent constants | moisture/calc_intermittent_moisture.ts:832-836 | 0.15, 0.3, 5 | FUDGE (no citation) | PHY-VENT-CONSTANTS |
+| Vasoconstriction threshold | iterativeTSkin (heat_balance/) | 33.0°C | FUDGE (citation ambiguity) | PHY-VASO-CITATION |
 
 ---
 

@@ -1,3 +1,18 @@
+> **STATUS (Session 17): SUPERSEDED BY REVERSION**
+>
+> This spec was RATIFIED in Session 14 and partially implemented in Session 15,
+> but the implementation was REVERTED in Session 17 per the closure document at
+> `LC6_Planning/LC6_REDESIGN_v1_Closure.md`.
+>
+> The pre-REDESIGN output layer (7.2 output budget + saturation cascade +
+> 40 mL comfort threshold) is retained and now documented as calibration
+> (not fudge) with inline code comments in `packages/engine/src/moisture/perceived_mr.ts`.
+>
+> The content below is preserved as historical record of Session 14 ratification.
+> Do not implement this spec. See closure doc for rationale.
+
+---
+
 # PHY-PERCEIVED-MR-REDESIGN v1 RATIFIED
 
 **Status:** RATIFIED 2026-04-18 (Session 14)
