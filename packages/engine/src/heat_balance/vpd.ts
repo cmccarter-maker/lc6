@@ -48,3 +48,52 @@ export function vpdRatio(tempF: number, humidity: number): number {
   const vpd = Math.max(0, eSat * (1 - (humidity ?? 45) / 100));
   return vpd / VPD_REF_HPA;
 }
+
+/**
+ * Dew point temperature from ambient temperature and relative humidity.
+ *
+ * Derives from Magnus formula (Alduchov & Eskridge 1996), same constants
+ * as satVaporPressure() in this file.
+ *
+ * Returns the temperature at which ambient vapor pressure would equal the
+ * saturation vapor pressure — i.e., the temperature at which condensation
+ * begins under constant pressure cooling.
+ *
+ * Used by PHY-HUMID-01 v2 for per-layer condensation placement (replaces
+ * hardcoded _tDewMicro = 29°C cold-weather reference in
+ * calc_intermittent_moisture.ts).
+ *
+ * @param tC ambient temperature in °C
+ * @param rhPercent relative humidity 0-100
+ * @returns dew point temperature in °C
+ */
+export function magnusDewPoint(tC: number, rhPercent: number): number {
+  const A = 17.27;
+  const B = 237.3;
+  const E0 = 6.1078;
+  const pAmb = E0 * Math.exp(A * tC / (tC + B)) * (rhPercent / 100);
+  const lnRatio = Math.log(pAmb / E0);
+  return B * lnRatio / (A - lnRatio);
+}
+
+/**
+ * Dew point temperature from vapor pressure (inverse Magnus).
+ *
+ * Inverse of the Magnus saturation vapor pressure formula. Returns the
+ * temperature T such that satVaporPressure(T) ≈ pHpa.
+ *
+ * Source: inverse of Alduchov & Eskridge 1996 form.
+ *
+ * Used by PHY-HUMID-01 v2 for per-layer dew point computation from
+ * interpolated vapor pressure in calc_intermittent_moisture.ts.
+ *
+ * @param pHpa vapor pressure in hPa
+ * @returns dew point temperature in °C
+ */
+export function inverseMagnus(pHpa: number): number {
+  const A = 17.27;
+  const B = 237.3;
+  const E0 = 6.1078;
+  const lnRatio = Math.log(pHpa / E0);
+  return B * lnRatio / (A - lnRatio);
+}
