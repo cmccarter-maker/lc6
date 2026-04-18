@@ -104,3 +104,35 @@ packages/engine/src/.
 - #8: thermal engine still locked (Phase 2+3 held)
 - #11: no code without ratified spec (PERCEIVED-MR-REDESIGN is DRAFT)
 - #14: audit preceded spec; spec precedes code; trackers precede future sessions
+
+
+## Session 14 — PHY-PERCEIVED-MR-REDESIGN v1 RATIFIED (no code changes)
+**Date:** 2026-04-18
+
+**Files added (planning only):**
+- LC6_Planning/specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v1_RATIFIED.md (265 lines)
+
+**Files modified (planning only):**
+- LC6_Planning/specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v0_DRAFT.md → v0_SUPERSEDED.md (renamed + banner added)
+- LC6_Planning/LC6_Spec_Registry.md (v0 → SUPERSEDED, v1 → RATIFIED)
+- LC6_Planning/LC6_Decision_Registry.md (DEC-PHY-PERCEIVED-MR-REDESIGN appended)
+- LC6_Planning/LC6_Session_Ledger.md (Session 14 entry appended)
+- LC6_Planning/LC6_Master_Tracking.md (first reconciliation: 5 B.12 items → F)
+
+**NO source code changes.** Phase 2+3 working-tree edits preserved.
+
+**Forensic review outcomes:**
+- Concern #3 (max operator): changed to additive model
+- Concern #5 (Rule #3 boundary): new §5 added to spec
+- Concern #6 (downstream impact): new §6 — implementation gate
+- Concern #7 (test expectations): 4 hand-computed reference scenarios required
+
+**Cardinal Rule compliance:**
+- #1: net improvement (3 hidden fudges removed; 1 named calibration tracked)
+- #3: single source of truth preserved via computePerceivedMR wrapper
+- #11: no code without ratified spec (v1 ratified; implementation Session 15+)
+- #14: forensic review preceded ratification (7 concerns raised and addressed)
+
+**Implementation remains BLOCKED** on:
+1. Downstream audit of all sessionMR consumers (§6 of spec)
+2. Hand-computed reference values for 4 scenarios (§7 of spec)

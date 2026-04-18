@@ -180,3 +180,61 @@ Memory #30 prohibiting fuzzy idempotency checks.
 
 **Applied:** Tracking document, audit doc, DRAFT spec. No code changes.
 **Unblocks:** Session 14 combined PHY-HUMID-01 v2 + PHY-PERCEIVED-MR-REDESIGN implementation.
+
+
+## DEC-PHY-PERCEIVED-MR-REDESIGN — Ratify redesigned perceived MR computation
+**Status:** RATIFIED as v1
+**Date:** 2026-04-18 (Session 14)
+**Spec:** LC6_Planning/specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v1_RATIFIED.md
+**Audit:** LC6_Planning/audits/MOISTURE_OUTPUT_AUDIT_S13.md
+**Supersedes:** v0 DRAFT (Session 13 initial attempt); v0.1 DRAFT (Session 14 interim)
+
+**Context:**
+Session 13 audit (DEC-MOISTURE-OUTPUT-AUDIT) caught 3 Cardinal Rule #1 violations in
+perceived_mr.ts. v0 DRAFT proposed redesign but had a weakness: max() combination
+operator underestimates compound discomfort. Session 14 forensic review identified
+7 concerns total. v0.1 addressed them; v1 adds H3 humid-running as 4th hand-computation
+reference (the scenario that triggered the original Session 12 investigation).
+
+**Key design decisions locked:**
+
+1. **Rule of 9's for BSA contact area.** 0.54 × BSA for long-sleeve base layer.
+   Honestly documented as "physics-adjacent, domain-borrowed from medical burns assessment.
+   Accepted as best available estimate until per-product coverage data is available."
+
+2. **Fukazawa 50 g/m² accepted on faith.** Existing code comment citation propagated
+   forward. Re-verification against source paper flagged for DOC-TA-V7 pass.
+
+3. **Additive combination operator** (not max). `Math.min(10, skinWetness + ensembleSat * 0.3)`.
+   Physical justification: compound discomfort (wet base AND saturated shell) is worse
+   than either alone. `× 0.3` is a documented latent calibration (PHY-PR-CHILL-WEIGHT),
+   replacing v0's hidden `× 0.5` fudge with a named flag.
+
+4. **Uniform averaging for ensemble saturation.** Zero-calibration simplest choice.
+   Layer-specific weighting would re-introduce calibration — the exact thing the audit
+   is trying to eliminate.
+
+5. **Cardinal Rule #3 boundary explicit.** `computePerceivedMR` is THE public interface.
+   Sub-functions marked `@internal` via comments; code review enforces.
+
+6. **Downstream impact gate (§6).** Implementation blocked on audit of ALL sessionMR
+   consumers before commit. CDI multipliers at evaluate.ts:741 are calibrated against
+   old 7.2-scaled MR distribution and must be re-evaluated.
+
+7. **4 reference scenarios for hand-computation** (§7): Breck 16°F cold baseline,
+   cycling 85°F warm uncompensable, hike 55°F humid middle-ground, H3 75°F/90% RH
+   running (the redesign-triggering scenario — MR must be 5-8 post-fix, not 0.7).
+
+**Cardinal Rule accounting:**
+- #1: three fudges removed (PERCEIVED_WEIGHTS, 7.2 scaling, uniform 40mL), one named
+  calibration remains (0.3 additive factor) with tracker entry
+- #3: single source of truth preserved via `computePerceivedMR` wrapper
+- #11: no code without ratified spec — v1 ratified before implementation
+- #14: forensic review preceded ratification (7 concerns raised and addressed)
+
+**Follow-up specs raised (already in Master Tracking):**
+- PHY-PR-COVERAGE-VAR (activity-specific torso coverage)
+- PHY-PR-CHILL-WEIGHT (empirical derivation of 0.3 coefficient + layer-specific ensemble weighting)
+
+**Applied: NO CODE CHANGES THIS SESSION.** Spec ratified only. Implementation Session 15+.
+**Unblocks:** Session 15+ implementation combined with PHY-HUMID-01 v2 Phase 2+3.

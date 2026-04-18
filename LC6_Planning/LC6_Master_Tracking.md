@@ -11,20 +11,15 @@
 
 ---
 
-## Status as of Session 13 close (pending successful commit)
+## Status as of Session 14 (first reconciliation pass)
 
-**Branch:** `session-13-phy-humid-v2` (Phase 1 pushed; Session 13 audit + this tracker not yet committed)
+**Branch:** `session-13-phy-humid-v2` (Session 13 audit committed 4098816 + pushed; Session 14 spec ratification in progress)
 **Working tree dirty:** `packages/engine/src/moisture/calc_intermittent_moisture.ts` (Phase 2+3 edits uncommitted)
 **Untracked file:** `v1.3,` (suspicious; investigate before next work)
 **Test count:** 636 passing on committed code; Phase 2+3 produces 13 directionally-correct test failures expected after ratification of PHY-PERCEIVED-MR-REDESIGN
 
-**Session 13 silent failures pending repair:**
-- `DEC-MOISTURE-OUTPUT-AUDIT` never written to Decision Registry (grep returns 0)
-- Session 13 Session Ledger entry never written (fuzzy idempotency match on Session 12 handoff notes)
-- `LC6_Planning/specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v0_DRAFT.md` never created
-- `LC6_Planning/audits/` directory doesn't exist; `MOISTURE_OUTPUT_AUDIT_S13.md` never copied
-
-All repaired as part of the same commit that writes this tracker.
+**Session 13 silent failures:** ALL REPAIRED in commit 4098816 (verified Session 14 via grep).
+**Session 14 work:** PHY-PERCEIVED-MR-REDESIGN v0 DRAFT → v1 RATIFIED. First Master Tracking reconciliation pass.
 
 ---
 
@@ -34,7 +29,7 @@ All repaired as part of the same commit that writes this tracker.
 |---|---|---|---|---|---|
 | PHY-GEAR-01 | v2 | RATIFIED + IMPLEMENTED | S11 | specs/PHY-GEAR-01_Spec_v2_RATIFIED.md | 1,627-product catalog live |
 | PHY-HUMID-01 | v2 | RATIFIED, PARTIALLY IMPLEMENTED | S12 | specs/PHY-HUMID-01_Spec_v2_RATIFIED.md | Phase 1 shipped e9d56b5; Phase 2+3 held (working tree dirty) |
-| PHY-PERCEIVED-MR-REDESIGN | v0 | DRAFT (to be written) | S13 | specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v0_DRAFT.md | 3 fudge factors in perceived_mr.ts |
+| PHY-PERCEIVED-MR-REDESIGN | v1 | RATIFIED | S14 | specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v1_RATIFIED.md | v1 ratified S14; implementation blocked on downstream audit + hand-computed reference scenarios |
 
 ---
 
@@ -147,11 +142,6 @@ All repaired as part of the same commit that writes this tracker.
 | ID | Priority | Status | Notes |
 |---|---|---|---|
 | S13-PHASE-2-3-DIRTY | HIGH | Blocked on PHY-PERCEIVED-MR-REDESIGN ratification | Phase 2+3 edits in working tree; commit with redesign in Session 14 |
-| S13-MISSING-SPEC-FILE | HIGH | To fix in close-out | `specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v0_DRAFT.md` never written |
-| S13-MISSING-AUDIT-FILE | HIGH | To fix in close-out | `audits/MOISTURE_OUTPUT_AUDIT_S13.md` never copied; `audits/` dir doesn't exist |
-| S13-MISSING-DECISION-REG | HIGH | To fix in close-out | `DEC-MOISTURE-OUTPUT-AUDIT` never written (grep -c returns 0) |
-| S13-MISSING-SESSION-LEDGER | HIGH | To fix in close-out | Session 13 entry never written (fuzzy idempotency silent skip) |
-| UNTRACKED-FILE-V1.3 | LOW | Investigate | `v1.3,` appears in `git status --short`; suspicious filename |
 
 ### B.13 LC4 carryforward (LC6 will eventually include UI per Session 13 scope decision)
 
@@ -236,6 +226,11 @@ These are items where user has explicitly or implicitly flagged structural impor
 | Wearable integration v2 (Architecture §11) | Moved | Same as UI-CM-DISPLAY / LC4 UI items; will address when LC6 UI phase begins |
 | Goldilocks calibration pipeline (Architecture §11) | Moved | Post-UI-launch item; tracked under DOC-ATP-V5 scope |
 | PHY-042 (Architecture §11) | S13 AM | CLOSED — confirmed NOT in LC6 engine source (grep returned 0); was LC5 context only |
+| S13-MISSING-SPEC-FILE | S14 commit | RESOLVED — specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v0_DRAFT.md written in commit 4098816 (now v0 SUPERSEDED after v1 ratification) |
+| S13-MISSING-AUDIT-FILE | S14 commit | RESOLVED — LC6_Planning/audits/ created and MOISTURE_OUTPUT_AUDIT_S13.md copied in commit 4098816 |
+| S13-MISSING-DECISION-REG | S14 commit | RESOLVED — DEC-MOISTURE-OUTPUT-AUDIT appended to Decision Registry in commit 4098816; grep -c = 1 |
+| S13-MISSING-SESSION-LEDGER | S14 commit | RESOLVED — Session 13 entry appended to Session Ledger in commit 4098816; grep -c = 1 |
+| UNTRACKED-FILE-V1.3 | S14 manual | RESOLVED — empty file deleted manually (`rm ~/Desktop/LC6/v1.3,`); was stray from shell redirect typo |
 
 ---
 

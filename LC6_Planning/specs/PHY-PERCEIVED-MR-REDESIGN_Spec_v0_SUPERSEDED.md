@@ -1,3 +1,17 @@
+# ⚠️ SUPERSEDED — DO NOT USE
+
+**This version superseded by v1 RATIFIED (Session 14, 2026-04-18).**
+
+Original v0 DRAFT used `Math.max(skinWetness, ensembleSat * 0.5)` combination operator.
+Forensic review in Session 14 found this underestimates compound discomfort. v0.1 and v1
+use additive model: `Math.min(10, skinWetness + ensembleSat * 0.3)`.
+
+See `PHY-PERCEIVED-MR-REDESIGN_Spec_v1_RATIFIED.md` for current spec.
+
+Retained for audit trail per Cardinal Rule #14 history discipline.
+
+---
+
 # PHY-PERCEIVED-MR-REDESIGN v0 DRAFT
 
 **Status:** DRAFT — awaiting forensic review before ratification (per Cardinal Rule #14)

@@ -126,3 +126,53 @@ post-fix: MR in 5-8 range. No regression on cold scenarios.
 7. Single atomic commit of both specs
 
 **Tests:** 636 passing on committed code (Phase 1). Phase 2+3 not yet committed.
+
+
+## Session 14 — PHY-PERCEIVED-MR-REDESIGN v1 RATIFIED; first Master Tracking reconciliation
+**Date:** 2026-04-18
+**Branch:** session-13-phy-humid-v2 (continued from Session 13)
+**Focus:** Forensic review of PHY-PERCEIVED-MR-REDESIGN v0 DRAFT → revise to v0.1 → ratify as v1.
+  Also: first reconciliation pass on Master Tracking.
+
+**Deliverables:**
+- PHY-PERCEIVED-MR-REDESIGN v0 DRAFT → SUPERSEDED (banner prepended; file renamed)
+- PHY-PERCEIVED-MR-REDESIGN v1 RATIFIED written
+- Session 14 entry in Session Ledger (this)
+- DEC-PHY-PERCEIVED-MR-REDESIGN in Decision Registry
+- Spec Registry updated (v0 SUPERSEDED, v1 RATIFIED)
+- Master Tracking reconciliation:
+  - Section B.12 resolved items moved to Section F (5 items: missing spec file,
+    missing audit file, missing decision reg, missing session ledger, untracked v1.3,
+    file)
+  - Section A updated to reflect PHY-PERCEIVED-MR-REDESIGN v1 RATIFIED
+  - Stale "Session 13 silent failures pending repair" block removed from status
+    header
+
+**Forensic review findings (v0 → v1 progression):**
+1. Rule of 9's for BSA — accepted with honest "physics-adjacent" documentation
+2. Fukazawa 50 g/m² — accepted on faith, re-verification flagged for DOC-TA-V7
+3. **max() operator → additive model** (v0 undercounted compound discomfort)
+4. Uniform ensemble averaging — documented as zero-calibration simplest choice
+5. New §5: Cardinal Rule #3 boundary explicit
+6. New §6: Downstream impact audit required before implementation
+7. Strengthened OQ-PR-D: 3→4 reference scenarios (added H3 — the redesign-triggering
+   scenario itself)
+
+**NO CODE CHANGES.** Spec work only.
+
+**Working tree still dirty** (Phase 2+3 preserved in calc_intermittent_moisture.ts).
+
+**Handoff to Session 15:**
+1. Session opens with cat of Master Tracking + git status
+2. Main work: IMPLEMENT v1 RATIFIED spec combined with Phase 2+3 (§8 of spec)
+   - Downstream audit FIRST (grep sessionMR consumers)
+   - Hand-compute 4 reference scenarios
+   - Write code changes
+   - Update test expectations using hand-computed values as authority
+   - Fix downstream CDI threshold calibrations
+   - Verify engine output matches hand computations
+   - Single atomic commit
+
+**Process note:** Session 13's tracking-file creation has already paid off. Session 14
+opened by reading the tracker, noted stale Section B.12 items, and reconciled them as
+part of this commit. The reconciliation discipline caught itself on second application.
