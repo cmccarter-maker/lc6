@@ -77,3 +77,52 @@ sources. `_excessRetention` fully withdrawn. PHY-HUMID-EXCESS-CAL cancelled.
 **Handoff to Session 13:** Implement v2 via Chat-produced surgical scripts
 per Cardinal Rule #13. Hand-computed verification per site. Expected H3
 post-fix: MR in 5-8 range. No regression on cold scenarios.
+
+
+## Session 13 — Phase 1 committed; audit RATIFIED; Phase 2+3 held
+**Date:** 2026-04-17
+**Branch:** session-13-phy-humid-v2
+**Focus:** Implement PHY-HUMID-01 v2; then halted for moisture-output Cardinal Rule #1 audit
+  triggered by user challenge mid-implementation.
+
+**Committed:**
+- Phase 1 (e9d56b5): Magnus dew point helpers + 8 unit tests, 636/636 green
+- Session 13 audit close (this commit):
+  - LC6_Planning/LC6_Master_Tracking.md (master tracker, 359 lines, 52 active items)
+  - LC6_Planning/audits/MOISTURE_OUTPUT_AUDIT_S13.md (moisture-output audit)
+  - LC6_Planning/specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v0_DRAFT.md
+  - All ledger updates
+
+**Held (dirty working tree, preserved for Session 14):**
+- Phase 2: per-layer Magnus dew point in calc_intermittent_moisture.ts
+- Phase 3: three-category moisture routing (liquid at skin → base, vapor → condens-weights,
+  hygro → shell)
+
+**Session 13 discoveries:**
+- Moisture-output pipeline has 3 Cardinal Rule #1 violations (PERCEIVED_WEIGHTS,
+  COMFORT_THRESHOLD, 7.2 scaling)
+- Saturation cascade curve confirmed as calibration per Sci Foundations §3.5 (output-shaping)
+- Sci Foundations surfaces 3 more calibration constants to audit: 0.85 evap cap (§3.3),
+  humidity floor (§3.4), cold penalty (§3.2) — status in LC6 requires verification
+- PHY-042 solar confirmed NOT in LC6 (grep returned 0)
+- Session 13 v1 close-out script had silent-skip bug: fuzzy `"Session 13" not in content`
+  idempotency matched Session 12 handoff notes; ledger writes never happened. User
+  challenge: "show me every circle-back item" surfaced gap. Full audit conducted; 60+
+  items consolidated into new Master Tracking document.
+
+**Process lessons (captured in Memory #30 and tracker Section H):**
+- Self-written idempotency checks silently fail. Never use fuzzy `not in content` logic.
+- Session close-out must RECONCILE (review each open item, move resolved to Section F),
+  not just ADD.
+- Master Tracking doc is canonical source; memory is advisory.
+
+**Handoff to Session 14:**
+1. Session opens with `cat LC6_Planning/LC6_Master_Tracking.md | head -150`
+2. Forensic review of PHY-PERCEIVED-MR-REDESIGN v0 DRAFT
+3. Resolve 4 OQs in spec
+4. Ratify v1
+5. Implement PERCEIVED-MR-REDESIGN combined with existing Phase 2+3 edits
+6. Update test expectations
+7. Single atomic commit of both specs
+
+**Tests:** 636 passing on committed code (Phase 1). Phase 2+3 not yet committed.

@@ -69,3 +69,38 @@ packages/engine/src/.
 - #8: thermal engine still untouched
 - #11: v2 ratified before implementation
 - #14: forensic audit traced every moisture input from source to output
+
+
+## Session 13 — Phase 1 committed; Phase 2+3 held; audit + tracker shipped
+**Date:** 2026-04-17
+
+**Committed this session:**
+- Phase 1 (e9d56b5): magnusDewPoint + inverseMagnus in vpd.ts + 8 unit tests
+  - 628 → 636 tests green
+- Session 13 audit close-out (this commit):
+  - LC6_Planning/LC6_Master_Tracking.md (359 lines, 52 active items)
+  - LC6_Planning/audits/MOISTURE_OUTPUT_AUDIT_S13.md
+  - LC6_Planning/specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v0_DRAFT.md
+  - Session Ledger, Decision Registry, Spec Registry updates
+
+**NOT committed (working tree preserved):**
+- Phase 2: per-layer Magnus dew point in calc_intermittent_moisture.ts (lines 736-744)
+- Phase 3: three-category moisture routing (lines 747-825)
+
+**Session 13 discoveries and process lessons:**
+- 3 Cardinal Rule #1 fudges caught in perceived_mr.ts
+- 3-4 additional calibration constants flagged via Sci Foundations §3.3-3.5 for audit
+- Session 13 v1 close-out had silent-skip bug (fuzzy idempotency matched handoff notes)
+- User demanded comprehensive tracking: "show me every circle-back item"
+- 20+ items were never tracked across memory / ledger / session closures / FUTURE_WORK
+- Master Tracking document built from: Open Issues Ledger + Architecture §11 + session
+  closures 6-9c + FUTURE_WORK.md + Session 11 handoff + user memory + code TODOs + empty
+  directories + Session 13 audit findings
+- Memory #30 added prohibiting fuzzy idempotency checks
+
+**Cardinal Rule compliance this session:**
+- #1: 3 fudges caught and named (PERCEIVED_WEIGHTS, COMFORT_THRESHOLD uniform,
+  7.2 scaling); 4 more flagged from Sci Foundations
+- #8: thermal engine still locked (Phase 2+3 held)
+- #11: no code without ratified spec (PERCEIVED-MR-REDESIGN is DRAFT)
+- #14: audit preceded spec; spec precedes code; trackers precede future sessions

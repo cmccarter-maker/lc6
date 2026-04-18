@@ -128,3 +128,55 @@ ratification bypassed that audit; v2 is the audited spec.
 
 **Follow-up:** Session 13 implements v2. No empirical calibration work
 required for PHY-HUMID-EXCESS-CAL (cancelled).
+
+
+## DEC-MOISTURE-OUTPUT-AUDIT — Session 13 Cardinal Rule #1 audit of MR output pipeline
+**Status:** Audit RATIFIED. Spec PHY-PERCEIVED-MR-REDESIGN v0 DRAFT pending review.
+**Date:** 2026-04-17 (Session 13)
+
+**Trigger:** During PHY-HUMID-01 v2 Phase 2+3 implementation, user pressed:
+"How is `PERCEIVED_WEIGHTS = [3, 2, 1.5, 1]` not a fudge factor?" Halting Phase 2+3
+commit, Session 13 conducted forensic audit of the moisture-output pipeline.
+
+**Audit scope:** `packages/engine/src/moisture/perceived_mr.ts` conversion from per-layer
+buffer state to 0-10 perceived MR score. Also cross-referenced against Scientific
+Foundations document §3.3-3.5.
+
+**Findings (3 Cardinal Rule #1 violations in perceived_mr.ts):**
+1. `PERCEIVED_WEIGHTS = [3, 2, 1.5, 1]` — FUDGE. Fukazawa 2003 + Zhang 2002 justify that
+   skin-adjacent layers matter more (direction), but not the specific ratios.
+2. `COMFORT_THRESHOLD = 40 mL` uniform — PARTIALLY CITED. Fukazawa 50 g/m² is cited; the
+   implied 0.8 m² contact area is not cited; threshold should scale with user BSA.
+3. `7.2` output scaling factor — FUDGE. No citation. Output-shaping calibration that
+   determines meaning of every MR threshold downstream.
+
+**Additional findings via Scientific Foundations §3.3-3.5:**
+- 0.85 evaporation rate cap (§3.3) — explicit calibration, status in LC6 TBD
+- Humidity floor `max(0, (H-60)/40)×4.0` (§3.4) — explicit calibration, status in LC6 TBD
+- Cold penalty `trapped×5 + cold_penalty` (§3.2) — explicit calibration, status in LC6 TBD
+- Saturation cascade 6-cutoff quadratic ease (§3.5) — CONFIRMED as calibration/compression
+
+**Resolution:**
+- Audit RATIFIED and published at LC6_Planning/audits/MOISTURE_OUTPUT_AUDIT_S13.md
+- Spec PHY-PERCEIVED-MR-REDESIGN v0 DRAFT written at LC6_Planning/specs/ (holds pending
+  forensic review per Cardinal Rule #14)
+- Phase 2+3 implementation HELD — test expectations locked to fudge output would lock in
+  the fudge. Combined commit with PERCEIVED-MR-REDESIGN in Session 14.
+- 5 new open issues added to LC6_Master_Tracking.md Section B.7 and Section C
+- Memory rule #30 added: tracking file is canonical, session ritual is inviolable
+
+**Process lesson:** Session 13 v1 close-out script used fuzzy idempotency check
+`if "Session 13" not in sl_content` which silently matched Session 12 handoff notes
+referencing "Session 13+" and skipped the write. Entries never landed in ledgers.
+User challenge surfaced the gap via simple demand: "show me every circle-back item."
+Led to construction of LC6_Master_Tracking.md as canonical source and
+Memory #30 prohibiting fuzzy idempotency checks.
+
+**Cardinal Rules preserved:**
+- #1: 3 fudges named and targeted by spec (not hidden)
+- #8: thermal engine not modified (Phase 2+3 held until spec complete)
+- #11: no code without ratified spec (DRAFT holds implementation)
+- #14: audit preceded spec; spec precedes code
+
+**Applied:** Tracking document, audit doc, DRAFT spec. No code changes.
+**Unblocks:** Session 14 combined PHY-HUMID-01 v2 + PHY-PERCEIVED-MR-REDESIGN implementation.
