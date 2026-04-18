@@ -11,15 +11,19 @@
 
 ---
 
-## Status as of Session 14 (first reconciliation pass)
+## Status as of Session 15 (§7 gate halt)
 
-**Branch:** `session-13-phy-humid-v2` (Session 13 audit committed 4098816 + pushed; Session 14 spec ratification in progress)
-**Working tree dirty:** `packages/engine/src/moisture/calc_intermittent_moisture.ts` (Phase 2+3 edits uncommitted)
-**Untracked file:** `v1.3,` (suspicious; investigate before next work)
-**Test count:** 636 passing on committed code; Phase 2+3 produces 13 directionally-correct test failures expected after ratification of PHY-PERCEIVED-MR-REDESIGN
+**Branch:** `session-13-phy-humid-v2` (S13/S14 commits 4098816 + 79b5623 pushed; S15 code WIP, NOT committed)
+**Working tree dirty (preserved for S16):**
+- `packages/engine/src/moisture/perceived_mr.ts` (REDESIGN v1 implemented per spec)
+- `packages/engine/src/moisture/calc_intermittent_moisture.ts` (Phase 2+3 + bsa threading)
+- `packages/engine/tests/moisture/perceived_mr.test.ts` (rewritten for v1 math; passing)
 
-**Session 13 silent failures:** ALL REPAIRED in commit 4098816 (verified Session 14 via grep).
-**Session 14 work:** PHY-PERCEIVED-MR-REDESIGN v0 DRAFT → v1 RATIFIED. First Master Tracking reconciliation pass.
+**Test count:** 634/647 passing. 13 failures in `calc_intermittent_moisture.test.ts` — stale PHY-071 snapshot values against new math. **DO NOT update these expected values** until §7 hand-computations complete (S16).
+
+**Session 15 halt reason:** Proceeded toward test expectation updates without first completing spec §7 hand-computation gate. User halted: "are we comparing expected results to locked-in results we know are incorrect?" The 13 failing snapshot values were captured from old 7.2-fudge-scaled engine; calibrating new engine to match them would preserve the fudge under a cleaner surface. §7 exists to prevent exactly this.
+
+**Session 16 target:** Complete §7 hand-computations for 4 reference scenarios (Breck 16°F, cycling 85°F, hike 55°F, H3 75°F/90%RH) using instrumented reference capture per Session 15 method decision. Only after §7 cleared with evidence: update test expectations and commit combined REDESIGN + Phase 2+3.
 
 ---
 
@@ -137,11 +141,15 @@
 | PHY-NAN-HARDENING | MEDIUM | Open | Synthetic gear ensembles produce MR=NaN in cyclic path (real gear doesn't hit); defensive boundary hardening (originally FUTURE_WORK P2 + Session 11 handoff OQ #2) |
 | UI-CM-DISPLAY | LOW (until UI phase) | Open | PHY-072 critical_moments + strategy_windows never wired to display (FUTURE_WORK P4) |
 
-### B.12 Session 13 state items (to be resolved post-tracker commit)
+### B.12 Session 13/14/15 state items
 
 | ID | Priority | Status | Notes |
 |---|---|---|---|
-| S13-PHASE-2-3-DIRTY | HIGH | Blocked on PHY-PERCEIVED-MR-REDESIGN ratification | Phase 2+3 edits in working tree; commit with redesign in Session 14 |
+| S13-PHASE-2-3-DIRTY | HIGH | S15: code implemented, §7 gate blocking commit | Phase 2+3 + bsa threading now in working tree (calc_intermittent_moisture.ts, perceived_mr.ts, perceived_mr.test.ts all modified). Cannot commit until §7 hand-computations done. |
+| S15-SPEC-SECTION-7-SKIPPED | HIGH | Open (process failure) | **S15 proceeded to test-expectation updates without completing spec §7 hand-computations.** User caught mid-session with "are we comparing expected results to locked-in results we know are incorrect?" — halted before committing fudge-calibrated expected values. S16 MUST complete §7 before any test assertion changes. |
+| S15-BSA-THREADING-INFLIGHT | HIGH | Open | `computePerceivedMR(_, _bsa)` threading applied at calc_intermittent_moisture.ts lines 931, 973, 992. Not committed. |
+| S15-PERCEIVED-MR-REDESIGN-INFLIGHT | HIGH | Open | REDESIGN v1 code in `perceived_mr.ts` (additive model, Rule of 9's, BSA-scaled Fukazawa). Test file rewritten. Not committed pending §7. |
+| S15-DOWNSTREAM-THRESHOLDS-PENDING | MEDIUM | Open | Audit found 5 threshold sites vs spec §6's expected 2 (evaluate.ts:741, 744, 808, 813 + precognitive_cm.ts:35 MR_CASCADE_THRESHOLD). Not evaluated against new MR distribution yet. Spec §6 gate incomplete. |
 
 ### B.13 LC4 carryforward (LC6 will eventually include UI per Session 13 scope decision)
 

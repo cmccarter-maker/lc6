@@ -136,3 +136,51 @@ packages/engine/src/.
 **Implementation remains BLOCKED** on:
 1. Downstream audit of all sessionMR consumers (§6 of spec)
 2. Hand-computed reference values for 4 scenarios (§7 of spec)
+
+
+## Session 15 — REDESIGN implementation WIP (§7 gate halt, no commit)
+**Date:** 2026-04-18
+
+**Source code changes (WORKING TREE, NOT COMMITTED):**
+
+1. `packages/engine/src/moisture/perceived_mr.ts` — REPLACED
+   - Removed: PERCEIVED_WEIGHTS, COMFORT_THRESHOLD constants, 7.2 output scaling
+   - Added: torsoContactArea(bsaM2), comfortThresholdML(bsaM2),
+     computeSkinWetnessPerception (@internal), computeEnsembleSaturationLoad
+     (@internal)
+   - Changed: computePerceivedMR now additive model with BSA parameter
+   - Signature: (layers) → (layers, bsaM2). Breaking change.
+
+2. `packages/engine/src/moisture/calc_intermittent_moisture.ts` — MODIFIED
+   - Phase 2 + Phase 3 edits preserved from S13 working tree
+   - S15 addition: threaded `_bsa` through 3 computePerceivedMR call sites
+     (lines 931, 973, 992) via sed edit
+
+3. `packages/engine/tests/moisture/perceived_mr.test.ts` — REPLACED
+   - Old imports (PERCEIVED_WEIGHTS, COMFORT_THRESHOLD) no longer exist
+   - New test groups: torsoContactArea, comfortThresholdML,
+     computeSkinWetnessPerception, computeEnsembleSaturationLoad,
+     computePerceivedMR
+   - Hand-computed expected values for v1 additive math
+   - All 11 new tests pass
+
+**Source code changes NOT COMMITTED per spec §7 gate:**
+- Test expectations in `packages/engine/tests/moisture/calc_intermittent_moisture.test.ts`
+  were NOT updated. 13 failing snapshot tests remain. Expected values must be
+  hand-computed per §7 reference scenarios before updating.
+
+**Planning file changes (THIS COMMIT):**
+- LC6_Planning/LC6_Master_Tracking.md (S15 state items in B.12, status block)
+- LC6_Planning/LC6_Session_Ledger.md (S15 entry)
+- LC6_Planning/LC6_Decision_Registry.md (DEC-S15-GATE-SKIP)
+- LC6_Planning/LC6_Code_Change_Log.md (this entry)
+
+**Memory changes:**
+- Removed #24 (stale colors file — narrow issue, tracker covers)
+- Added #30 (S15 gate lesson)
+
+**Cardinal Rules this session:**
+- #11: no code without ratified spec — upheld (working tree, not shipping)
+- #14: halted when gate discovered skipped — new corollary via memory #30
+
+**Tests at halt:** 634/647 passing. 13 stale snapshot failures await §7 work.

@@ -176,3 +176,69 @@ post-fix: MR in 5-8 range. No regression on cold scenarios.
 **Process note:** Session 13's tracking-file creation has already paid off. Session 14
 opened by reading the tracker, noted stale Section B.12 items, and reconciled them as
 part of this commit. The reconciliation discipline caught itself on second application.
+
+
+## Session 15 — PHY-PERCEIVED-MR-REDESIGN implementation HALTED at §7 gate
+**Date:** 2026-04-18 (afternoon, same day as S13/S14)
+**Branch:** session-13-phy-humid-v2 (continued)
+**Focus:** Implement PHY-PERCEIVED-MR-REDESIGN v1 + Phase 2+3 combined per spec §8.
+**Outcome:** Halted mid-session at §7 gate. Code implemented but not committed.
+
+**Work completed (in working tree, not committed):**
+1. Downstream audit per spec §6: grepped all `sessionMR`/`peak_MR`/`.MR` consumers.
+   - Found 5 threshold sites (vs spec's expected 2): evaluate.ts:741, 744, 808, 813
+     + precognitive_cm.ts:35 (MR_CASCADE_THRESHOLD). Audit added 1 new tracker
+     entry: S15-DOWNSTREAM-THRESHOLDS-PENDING.
+2. Implemented REDESIGN in `packages/engine/src/moisture/perceived_mr.ts`:
+   - Replaced PERCEIVED_WEIGHTS + COMFORT_THRESHOLD=40 + 7.2 scaling
+   - Added torsoContactArea(bsa) = 0.54×bsa (Rule of 9's)
+   - Added comfortThresholdML(bsa) = 50 × torsoContactArea(bsa) (Fukazawa)
+   - Added computeSkinWetnessPerception, computeEnsembleSaturationLoad (@internal)
+   - computePerceivedMR now additive: min(10, skinWetness + ensembleSat × 0.3)
+   - Signature: (layers, bsaM2)
+3. Rewrote `packages/engine/tests/moisture/perceived_mr.test.ts` for v1 math:
+   - Hand-computed expected values from additive model
+   - All 11 tests pass (was 8 failing in old test file against new code)
+4. Threaded `_bsa` through `calc_intermittent_moisture.ts` at 3 call sites
+   (lines 931, 973, 992) via sed edit.
+
+**Work HALTED — not completed:**
+- Test expectation updates for 13 failing snapshot tests in
+  `calc_intermittent_moisture.test.ts`
+- Reason: Spec §7 explicitly requires hand-computed reference values for 4
+  scenarios BEFORE updating test assertions. Session 15 proceeded toward
+  updating expected values without completing §7, which would have calibrated
+  new engine to match OLD 7.2-fudge-scaled snapshot values.
+- User caught the gap mid-session: "are we comparing expected results to
+  locked-in results we know are incorrect...meaning we are performing an
+  iterative solution on a flawed result..."
+- Yes. Exactly. §7 gate is what prevents this.
+
+**Tests at halt:** 634/647 passing. 13 failures all in one file, all scenario
+snapshot assertions (sessionMR, trapped, goodRunCount, totalFluidLoss,
+perCycleMR values). These are NOT physics failures — they're snapshot values
+from pre-REDESIGN engine that need §7-validated replacements.
+
+**Process lesson added to Memory #30 (replacing old #24):**
+"Spec §-numbered gates are BLOCKING. If a spec has a numbered gate/§, clear
+with evidence BEFORE the gated step. Applies all specs, all sessions."
+
+**Handoff to Session 16:**
+1. Session opens: cat Master Tracking + git status. Confirm working tree still
+   has 3 modified files (perceived_mr.ts, calc_intermittent_moisture.ts,
+   perceived_mr.test.ts).
+2. Main work: Instrumented reference capture for 4 §7 scenarios
+   (Breck 16°F, cycling 85°F, hike 55°F, H3 75°F/90%RH).
+   - Method: add diagnostic logging to engine, run each scenario, capture all
+     intermediate physics values (T_skin, E_req, E_max, sweat, layer buffers,
+     skinWetness, ensembleSat, final MR).
+   - Validate: Claude specs physics expectations, engine produces actual values,
+     cross-check at each step.
+3. Only after §7 cleared: update test expectations in
+   `calc_intermittent_moisture.test.ts` with validated values.
+4. Then: audit 5 downstream threshold sites (§6 gate), review/update as needed.
+5. Single atomic commit: REDESIGN + Phase 2+3 + bsa threading + test updates
+   + downstream threshold fixes.
+
+**No code committed this session.** Tracker/ledger updates committed separately
+to capture S15 state and process lesson.
