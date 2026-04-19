@@ -13,6 +13,7 @@
 
 <!-- S17-RECONCILIATION-APPLIED -->
 <!-- S18-FINDINGS-APPLIED -->
+<!-- S18-RECONCILIATION-APPLIED -->
 ## Status as of Session 18 (smoke test + cold-MR audit shipped; two findings logged)
 
 **Branch:** `session-13-phy-humid-v2`
@@ -175,17 +176,9 @@ Session 15 halted at spec §7 gate while implementing REDESIGN v1. Retained here
 | UI-CM-DISPLAY | LOW (until UI phase) | Open | PHY-072 critical_moments + strategy_windows never wired to display (FUTURE_WORK P4) |
 | PHY-TEST-VALIDATION-AUDIT | MEDIUM | Open | Raised S15. For each physics-output test assertion, verify expected value was hand-computed (not captured snapshot). See Section J.4. Escalates to HIGH if S16 §7 reveals systemic divergence OR count of `[CAPTURED-...-UNCONFIRMED]` tags > 20. |
 
-### B.12 Session 13/14/15 state items — ALL RESOLVED S17
+### B.12 Session 13/14/15 state items — RESOLVED S17 (moved to Section F)
 
-All items below closed by Session 17 reversion. Retained here for audit trail; moved to Section F on next tracker reconciliation pass.
-
-| ID | S17 Resolution |
-|---|---|
-| S13-PHASE-2-3-DIRTY | RESOLVED. Phase 2+3 code reverted via `git checkout HEAD`. PHY-HUMID-01 v2 spec itself remains RATIFIED for future dedicated implementation session. |
-| S15-SPEC-SECTION-7-SKIPPED | RESOLVED. Spec §7 gate obviated by reversion of the spec it gated. Process lesson codified as meta-rule: "sessions ship commits; if no commit by hour 2, stop and reassess." |
-| S15-BSA-THREADING-INFLIGHT | RESOLVED. BSA threading reverted with calc_intermittent_moisture.ts restoration. No longer relevant post-revert. |
-| S15-PERCEIVED-MR-REDESIGN-INFLIGHT | RESOLVED via reversion. Spec v1 marked SUPERSEDED BY REVERSION per closure doc. |
-| S15-DOWNSTREAM-THRESHOLDS-PENDING | RESOLVED. Pre-REDESIGN MR distribution restored; downstream thresholds (evaluate.ts:741, 744, 808, 813 + precognitive_cm.ts:35) still match the scale they were originally calibrated against. |
+Moved to Section F in Session 18 reconciliation. 5 items (S13-PHASE-2-3-DIRTY, S15-SPEC-SECTION-7-SKIPPED, S15-BSA-THREADING-INFLIGHT, S15-PERCEIVED-MR-REDESIGN-INFLIGHT, S15-DOWNSTREAM-THRESHOLDS-PENDING) all closed by S17 REDESIGN reversion. See Section F for resolution details. This subsection header retained as a cross-reference only.
 
 ### B.13 LC4 carryforward (LC6 will eventually include UI per Session 13 scope decision)
 
@@ -297,6 +290,12 @@ These are items where user has explicitly or implicitly flagged structural impor
 | S13-MISSING-SESSION-LEDGER | S14 commit | RESOLVED — Session 13 entry appended to Session Ledger in commit 4098816; grep -c = 1 |
 | UNTRACKED-FILE-V1.3 | S14 manual | RESOLVED — empty file deleted manually (`rm ~/Desktop/LC6/v1.3,`); was stray from shell redirect typo |
 
+| S13-PHASE-2-3-DIRTY | S17 | RESOLVED — Phase 2+3 code reverted via git checkout HEAD in S17 commit 3ce33fe. PHY-HUMID-01 v2 spec itself retained as RATIFIED for future dedicated implementation. |
+| S15-SPEC-SECTION-7-SKIPPED | S17 | RESOLVED — spec §7 gate obviated by reversion of the spec it gated. Process lesson codified as meta-rule in S17 closure doc: "sessions ship commits; if no commit by hour 2, stop and reassess." |
+| S15-BSA-THREADING-INFLIGHT | S17 | RESOLVED — BSA threading reverted with calc_intermittent_moisture.ts restoration. No longer relevant post-revert. |
+| S15-PERCEIVED-MR-REDESIGN-INFLIGHT | S17 | RESOLVED via reversion. Spec v1 marked SUPERSEDED BY REVERSION per LC6_Planning/LC6_REDESIGN_v1_Closure.md. |
+| S15-DOWNSTREAM-THRESHOLDS-PENDING | S17 | RESOLVED — pre-REDESIGN MR distribution restored; downstream thresholds at evaluate.ts:741/744/808/813 + precognitive_cm.ts:35 still match the scale they were originally calibrated against. |
+
 ---
 
 ## Section G: Verification Commands
@@ -329,7 +328,8 @@ for ID in \
   S13-MISSING-DECISION-REG S13-MISSING-SESSION-LEDGER \
   UNTRACKED-FILE-V1.3 \
   BUG-132 BUG-HALFDOME-PERSTEPMR UI-KIRKWOOD-FIXES \
-  PERCEIVED_WEIGHTS COMFORT_THRESHOLD
+  PERCEIVED_WEIGHTS COMFORT_THRESHOLD \
+  S18-CASCADE-NOT-WIRED S18-CROSSOVER-REGIME-SHAPE
 do
   COUNT=$(grep -c "$ID" LC6_Planning/LC6_Master_Tracking.md 2>/dev/null)
   if [[ "$COUNT" == "0" || -z "$COUNT" ]]; then
