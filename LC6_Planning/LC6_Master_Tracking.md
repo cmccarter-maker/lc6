@@ -15,6 +15,7 @@
 <!-- S18-FINDINGS-APPLIED -->
 <!-- S18-RECONCILIATION-APPLIED -->
 <!-- S19-APPLIED -->
+<!-- S19-RECONCILIATION-APPLIED -->
 ## Status as of Session 19 (cascade wired; plateau finding logged)
 
 **Branch:** `session-13-phy-humid-v2`
@@ -152,10 +153,9 @@ Session 15 halted at spec §7 gate while implementing REDESIGN v1. Retained here
 |---|---|---|---|
 | PHY-PR-COVERAGE-VAR | LOW | Open | Activity-specific torso coverage; default 0.54×BSA (long-sleeve, Rule of 9's); schema extension required for Option B |
 | PHY-PR-CHILL-WEIGHT | MEDIUM | Open | Ensemble saturation combination weight (placeholder 0.5 in backward-compat wrapper); needs empirical data |
-| PHY-EVAP-CAP-0.85 | MEDIUM | Open | Sci Foundations §3.3 0.85 evaporation rate cap; needs audit whether present in LC6 |
-| PHY-HUMIDITY-FLOOR | MEDIUM | Open | Sci Foundations §3.4 `MR_floor = max(0, (H-60)/40)×4.0`; needs audit whether present in LC6 |
-| PHY-COLD-PENALTY | MEDIUM | Open | Sci Foundations §3.2 `trapped×5 + cold_penalty` with f_suit=2.5; needs audit whether present in LC6 |
-| PHY-COMPRESSION-CURVE | MEDIUM | Open | applySaturationCascade 6-cutoff quadratic ease; confirmed calibration, needs spec decision (keep/redesign) |
+| PHY-EVAP-CAP-0.85 | MEDIUM | Open — present in LC6, validation pending | Sci Foundations §3.3 0.85 evaporation rate cap. S19 audit confirmed present at 2 sites in calc_intermittent_moisture.ts (steady-state line 387, linear line 1067): `Math.min(0.85, waderEvapFloor(...))`. The 0.85 ceiling is the physical upper bound on evaporative efficiency fraction. Open question: constant validation against published data (psychrometric/woodcock). Presence audit: DONE. Physical-value validation: PENDING. |
+| PHY-HUMIDITY-FLOOR | MEDIUM | Open — present in LC6, validation pending | Sci Foundations §3.4 humidity floor factor. S19 audit confirmed `humidityFloorFactor` function in heat_balance/utilities.ts:48; imported by calc_intermittent_moisture.ts and split_body.ts; called at split_body.ts:160 (`0.02 * humidityFloorFactor(rh)`). Function body not reviewed in this audit; whether it matches LC5 formula `MR_floor = max(0, (H-60)/40)×4.0` still needs verification. Presence audit: DONE. Formula-match audit: PENDING. |
+| PHY-COLD-PENALTY | MEDIUM → HIGH design decision | Open — NOT PRESENT in LC6; deliberate-vs-oversight question flagged | Sci Foundations §3.2 describes `trapped×5 + cold_penalty` with f_suit=2.5 as additive MR term. S19 audit: grep for `coldPenalty`, `cold_penalty`, `f_suit` returned ZERO matches in packages/engine/src/. LC6 architecture uses different MR construction — `computePerceivedMR` is buffer-weighted (per-layer saturation × 7.2 scaling), with cold effects propagating through energy balance (lower T_ambient → more sweat → more buffer fill), NOT through an additive cold penalty term. This is a design-vs-port difference that must be explicitly resolved: (a) LC6 architecture is intentional replacement and cold effects are correctly captured via energy balance — no port needed. OR (b) cold_penalty is a missing term that should be added back. Requires Chat decision with user input before any code action. Priority bumped because the answer affects cold-weather MR fidelity — the exact territory Christian flagged as under-reading. |
 
 ### B.8 Code-level TODO markers
 
@@ -316,6 +316,8 @@ These are items where user has explicitly or implicitly flagged structural impor
 | S15-DOWNSTREAM-THRESHOLDS-PENDING | S17 | RESOLVED — pre-REDESIGN MR distribution restored; downstream thresholds at evaluate.ts:741/744/808/813 + precognitive_cm.ts:35 still match the scale they were originally calibrated against. |
 
 | S18-CASCADE-NOT-WIRED | S19 | RESOLVED — `applySaturationCascade` wired into 4 call sites in calc_intermittent_moisture.ts (steady-state per-step line 410, cyclic path fallback + final line 995/997, linear path line 1094). Verified empirically: 14hr ski scenario with raw MR=7.20 produces sessionMR=8.0 per cascade formula. Zero regressions on 639 pre-existing tests. Commit: (this session). |
+
+| PHY-COMPRESSION-CURVE | S19 | RESOLVED — decision: KEEP. S17 reclassified as documented calibration per Sci Foundations §3.5. S19 wired the function into production pipeline and empirically verified the 6-10 quadratic ease-out fires correctly (14hr ski raw MR=7.20 → sessionMR=8.0 matches formula). 4-6 region redesign question separately tracked as S18-CROSSOVER-REGIME-SHAPE. No further compression-curve decision required — any future 4-6 redesign happens under that separate ID. |
 
 ---
 
