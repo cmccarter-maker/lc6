@@ -12,6 +12,27 @@
 ---
 
 <!-- S17-RECONCILIATION-APPLIED -->
+<!-- S18-FINDINGS-APPLIED -->
+## Status as of Session 18 (smoke test + cold-MR audit shipped; two findings logged)
+
+**Branch:** `session-13-phy-humid-v2`
+**Working tree:** clean post-S18 commit
+**Test count:** 638/638 passing (+ 2 new audit tests from S18)
+
+**Session 18 outcome:**
+- Ran 4 user-realistic scenarios (Breck snowboarding, day hike, backpacking, fishing) through the post-revert engine. No crashes. MR values produced (2.0, 1.1, 1.4, 1.0).
+- Built CLO × ensembleIm response matrix (cold/skiing conditions). MR climbs monotonically with CLO (2.5 → 6.0 as CLO rises 2.0 → 5.0). MR barely responds to ensembleIm parameter (0.1 range across 3× im sweep) when `gearItems` is null.
+- Per-cycle trajectory under worst case (CLO=5.0, im=0.10) shows near-perfectly linear MR accumulation — no cascade amplification in 6-10 band.
+- **Identified 2 real findings (see Section B.14 below).** Both tracked. Neither fixed tonight.
+
+**S18 test artifacts shipped:**
+- `packages/engine/tests/evaluate/s18_smoke.test.ts` — 4 scenarios through `evaluate()`, observation-only harness
+- `packages/engine/tests/moisture/s18_cold_mr_audit.test.ts` — CLO × im matrix + worst-case trajectory
+
+These are intentionally informational tests (assertions check only "no crash / no NaN / in [0,10] range"). Keep or delete per preference on next audit pass.
+
+### Historical record — Session 17 (REDESIGN reverted)
+
 ## Status as of Session 17 (REDESIGN reverted, back to clean baseline)
 
 **Branch:** `session-13-phy-humid-v2`
@@ -173,6 +194,15 @@ All items below closed by Session 17 reversion. Retained here for audit trail; m
 | BUG-132 | LOW | Open (LC4-surfaced) | Bouldering shows 0% saturation — physically correct but uninformative UX |
 | BUG-HALFDOME-PERSTEPMR | MEDIUM | Open (LC4-surfaced) | Flat perStepMR on Half Dome trip |
 | UI-KIRKWOOD-FIXES | LOW | Open (LC4-surfaced) | Fishing hourly pills, carry indicators, strip MR vs gauge MR mismatch, Step 4 Trip Summary Card |
+
+
+### B.14 Session 18 audit findings (moisture pipeline)
+
+| ID | Priority | Status | Notes |
+|---|---|---|---|
+| S18-CASCADE-NOT-WIRED | **HIGH** | Open — bounded fix | `applySaturationCascade` function exists in `packages/engine/src/moisture/saturation_cascade.ts`, is unit-tested (7 passing tests), and is exported through `moisture/index.ts` and `src/index.ts`. It is **never called in the production engine pipeline**. Raw MR values (pre-cascade) flow through to the output. The designed quadratic ease-out that amplifies MR in the 6-10 band is inactive. Evidence: grep across `packages/engine/src/` returns zero production call sites. Finding is consistent with user's hypothesis "MR under-reads cold-weather high-CLO scenarios" — cascade is the mechanism that was supposed to push severe scenarios into the Critical tier. Fix scope: one file, one or two line changes (call `applySaturationCascade` at the session MR computation in `calc_intermittent_moisture.ts`, likely after the per-cycle aggregation around line 989-998). Verification: rerun `s18_cold_mr_audit.test.ts` matrix — expect worst-case cells (CLO=5.0, im=0.10) to climb from 6.0 into 7-9 range. |
+| S18-CROSSOVER-REGIME-SHAPE | MEDIUM | Open — design gap, requires research | The saturation cascade model (TA v5 §3.5, `saturation_cascade.html` design poster) documents three physical regimes: Absorption (0-4 linear), Conductive Crossover (4-6 inflection — liquid bridges forming, insulation drops 40-60% per poster), Cascade (6-10 exponential self-reinforcing). The current `applySaturationCascade` function (even when wired in) implements only two phases: linear 0-6, quadratic 6-10. The Crossover region is bundled into the linear regime with no distinct math. This is a design gap, not a code bug — the file comment itself says "Phase 1 (0-6): Linear pass-through — Absorption + Crossover". Physical intent: during Crossover, user perception plateaus (Fechner inversion) while thermal conductivity accelerates non-linearly. Output should accelerate in this region to counteract the perception lag, ideally following the actual k-decay curve from Castellani & Young 2016 or equivalent source. Fix scope: dedicated spec session. Research citations (Castellani 2016, Fukazawa wet-fabric conductivity decay, possibly Havenith multilayer models) to define the proper functional form for 4-6 region. Not tonight; requires careful thought and literature review. |
+
 
 ---
 
