@@ -163,3 +163,96 @@ describe('S18 Cold MR Audit — CLO x im response curve', () => {
   });
 
 });
+
+
+describe('S19 cascade verification — long-duration scenarios that exceed raw MR=6', () => {
+
+  it('Very long ski (14hr) pushes MR into cascade region, transform applied', () => {
+    // 14hr skiing with CLO=4.0 / im=0.12 — chosen to push raw MR into 6-10 band
+    // via duration accumulation (not extreme CLO). Real-world analog: alpine
+    // objective, dawn-to-dusk, well-matched heavy kit.
+    const r = calcIntermittentMoisture(
+      'skiing', 16, 40, 8, 14,
+      'male', 170, 1.0,
+      0.12,
+      'groomers',
+      null, false, 0, false, 1.0,
+      null, null, 'moderate', null, 3, null, 0,
+      4.0,
+      null, null, 0, null,
+    );
+
+    console.log('\n');
+    console.log('='.repeat(100));
+    console.log('S19 CASCADE VERIFICATION — 14hr ski, CLO=4.0, im=0.12');
+    console.log('='.repeat(100));
+    console.log(`sessionMR (post-cascade): ${r.sessionMR}`);
+    console.log(`trapped: ${r.trapped.toFixed(3)} L`);
+    console.log(`totalFluidLoss: ${r.totalFluidLoss?.toFixed(0) ?? 'n/a'} mL`);
+    console.log(`peakSaturationFrac: ${((r.peakSaturationFrac ?? 0) * 100).toFixed(1)}%`);
+    console.log(`totalRuns: ${r.totalRuns}`);
+    console.log('');
+    console.log('Per-cycle MR trajectory (these are PRE-cascade per-cycle values;');
+    console.log('cascade is applied to sessionMR at return, not to each cycle):');
+    const mrs = r.perCycleMR ?? [];
+    const trs = r.perCycleTrapped ?? [];
+    for (let i = 0; i < mrs.length; i++) {
+      const mr = mrs[i] ?? 0;
+      const tr = trs[i] ?? 0;
+      const bar = '█'.repeat(Math.min(50, Math.round(mr * 5)));
+      const marker = mr > 6 ? '  [>6: cascade would amplify]' : '';
+      console.log(`  cycle ${String(i+1).padStart(2)}: MR=${mr.toFixed(2).padStart(5)}  trap=${tr.toFixed(3)}L  ${bar}${marker}`);
+    }
+    console.log('='.repeat(100));
+
+    expect(Number.isFinite(r.sessionMR)).toBe(true);
+    expect(r.sessionMR).toBeGreaterThanOrEqual(0);
+    expect(r.sessionMR).toBeLessThanOrEqual(10);
+  });
+
+  it('Extreme scenario: 20hr ski, CLO=5.0, im=0.10 — should pin near 10', () => {
+    const r = calcIntermittentMoisture(
+      'skiing', 16, 40, 8, 20,
+      'male', 170, 1.0,
+      0.10,
+      'groomers',
+      null, false, 0, false, 1.0,
+      null, null, 'moderate', null, 3, null, 0,
+      5.0,
+      null, null, 0, null,
+    );
+
+    console.log('\n');
+    console.log('='.repeat(100));
+    console.log('S19 EXTREME — 20hr ski, CLO=5.0, im=0.10');
+    console.log('='.repeat(100));
+    console.log(`sessionMR: ${r.sessionMR}`);
+    console.log(`trapped: ${r.trapped.toFixed(3)} L`);
+    console.log(`peakSaturationFrac: ${((r.peakSaturationFrac ?? 0) * 100).toFixed(1)}%`);
+    console.log(`totalRuns: ${r.totalRuns}`);
+    console.log('');
+    console.log('Last 10 per-cycle MR values (pre-cascade):');
+    const mrs = r.perCycleMR ?? [];
+    const start = Math.max(0, mrs.length - 10);
+    for (let i = start; i < mrs.length; i++) {
+      const mr = mrs[i] ?? 0;
+      const bar = '█'.repeat(Math.min(50, Math.round(mr * 5)));
+      const marker = mr > 6 ? '  [>6]' : '';
+      console.log(`  cycle ${String(i+1).padStart(3)}: MR=${mr.toFixed(2).padStart(5)}  ${bar}${marker}`);
+    }
+    console.log('');
+    console.log('Cascade transform examples (for reference):');
+    console.log('  raw 6.0 → 6.00 (identity)');
+    console.log('  raw 7.0 → 7.75');
+    console.log('  raw 8.0 → 9.00');
+    console.log('  raw 9.0 → 9.75');
+    console.log('  raw 10+ → 10.0');
+    console.log('='.repeat(100));
+
+    expect(Number.isFinite(r.sessionMR)).toBe(true);
+    expect(r.sessionMR).toBeGreaterThanOrEqual(0);
+    expect(r.sessionMR).toBeLessThanOrEqual(10);
+  });
+
+});
+

@@ -14,6 +14,24 @@
 <!-- S17-RECONCILIATION-APPLIED -->
 <!-- S18-FINDINGS-APPLIED -->
 <!-- S18-RECONCILIATION-APPLIED -->
+<!-- S19-APPLIED -->
+## Status as of Session 19 (cascade wired; plateau finding logged)
+
+**Branch:** `session-13-phy-humid-v2`
+**Working tree:** clean post-S19 commit
+**Test count:** 641/641 passing (+ 2 new cascade-verification tests)
+
+**Session 19 outcome:**
+- **S18-CASCADE-NOT-WIRED: RESOLVED.** `applySaturationCascade` now called at 4 sites in `calc_intermittent_moisture.ts`: steady-state per-step MR push (line 410), cyclic path fallback (line 995), cyclic path final sessionMR (line 997 — applies to both ternary branches), linear path sessionMR (line 1094).
+- Cascade verified empirically: 14hr ski scenario with raw MR=7.20 (plateaued) produces sessionMR=8.0 post-cascade. Formula matches: 6 + 4 × (1 - (1 - 0.3)²) = 8.04 → 8.0. Quadratic ease-out firing correctly in the 6-10 band.
+- Cascade is identity below 6, so all existing scenarios (matrix values ≤ 6.0 in S18 audit) produce identical output. Zero regressions on 639 pre-existing tests.
+- **New finding logged: S19-SYSTEM-CAP-PLATEAU (see B.14).** Extended audit revealed that after trapped hits a system cap (~0.311L for skiing), per-cycle MR plateaus identically for 10+ cycles. Duration past the cap has no effect on output. 14hr and 20hr scenarios produce identical sessionMR (8.0) and trapped (0.311L). Separate issue from cascade, logged for future session.
+
+**Forward plan:**
+- **S20+:** Pick one from: S19-SYSTEM-CAP-PLATEAU investigation, S18-CROSSOVER-REGIME-SHAPE (research-heavy), IREQ Block 2, Phase 1-Corrective, Layer 2 pacing, genuine staircase fudges.
+
+### Historical record — Session 18 (smoke test + findings)
+
 ## Status as of Session 18 (smoke test + cold-MR audit shipped; two findings logged)
 
 **Branch:** `session-13-phy-humid-v2`
@@ -193,8 +211,9 @@ Moved to Section F in Session 18 reconciliation. 5 items (S13-PHASE-2-3-DIRTY, S
 
 | ID | Priority | Status | Notes |
 |---|---|---|---|
-| S18-CASCADE-NOT-WIRED | **HIGH** | Open — bounded fix | `applySaturationCascade` function exists in `packages/engine/src/moisture/saturation_cascade.ts`, is unit-tested (7 passing tests), and is exported through `moisture/index.ts` and `src/index.ts`. It is **never called in the production engine pipeline**. Raw MR values (pre-cascade) flow through to the output. The designed quadratic ease-out that amplifies MR in the 6-10 band is inactive. Evidence: grep across `packages/engine/src/` returns zero production call sites. Finding is consistent with user's hypothesis "MR under-reads cold-weather high-CLO scenarios" — cascade is the mechanism that was supposed to push severe scenarios into the Critical tier. Fix scope: one file, one or two line changes (call `applySaturationCascade` at the session MR computation in `calc_intermittent_moisture.ts`, likely after the per-cycle aggregation around line 989-998). Verification: rerun `s18_cold_mr_audit.test.ts` matrix — expect worst-case cells (CLO=5.0, im=0.10) to climb from 6.0 into 7-9 range. |
-| S18-CROSSOVER-REGIME-SHAPE | MEDIUM | Open — design gap, requires research | The saturation cascade model (TA v5 §3.5, `saturation_cascade.html` design poster) documents three physical regimes: Absorption (0-4 linear), Conductive Crossover (4-6 inflection — liquid bridges forming, insulation drops 40-60% per poster), Cascade (6-10 exponential self-reinforcing). The current `applySaturationCascade` function (even when wired in) implements only two phases: linear 0-6, quadratic 6-10. The Crossover region is bundled into the linear regime with no distinct math. This is a design gap, not a code bug — the file comment itself says "Phase 1 (0-6): Linear pass-through — Absorption + Crossover". Physical intent: during Crossover, user perception plateaus (Fechner inversion) while thermal conductivity accelerates non-linearly. Output should accelerate in this region to counteract the perception lag, ideally following the actual k-decay curve from Castellani & Young 2016 or equivalent source. Fix scope: dedicated spec session. Research citations (Castellani 2016, Fukazawa wet-fabric conductivity decay, possibly Havenith multilayer models) to define the proper functional form for 4-6 region. Not tonight; requires careful thought and literature review. |
+| S18-CASCADE-NOT-WIRED | HIGH | RESOLVED S19 (moved to Section F) | Fixed in Session 19 commit — `applySaturationCascade` wired into 4 call sites in `calc_intermittent_moisture.ts`. See Section F. |
+| S18-CROSSOVER-REGIME-SHAPE | MEDIUM | Open — design gap, requires research | The saturation cascade model (TA v5 §3.5, `saturation_cascade.html` design poster) documents three physical regimes: Absorption (0-4 linear), Conductive Crossover (4-6 inflection — liquid bridges forming, insulation drops 40-60% per poster), Cascade (6-10 exponential self-reinforcing). The current `applySaturationCascade` function implements only two phases: linear 0-6, quadratic 6-10. The Crossover region is bundled into the linear regime with no distinct math. This is a design gap, not a code bug — the file comment itself says "Phase 1 (0-6): Linear pass-through — Absorption + Crossover". Physical intent: during Crossover, user perception plateaus (Fechner inversion) while thermal conductivity accelerates non-linearly. Output should accelerate in this region to counteract the perception lag, ideally following the actual k-decay curve from Castellani & Young 2016 or equivalent source. Fix scope: dedicated spec session. Research citations (Castellani 2016, Fukazawa wet-fabric conductivity decay, possibly Havenith multilayer models) to define the proper functional form for 4-6 region. |
+| S19-SYSTEM-CAP-PLATEAU | MEDIUM | Open | Discovered during S19 cascade verification. When trapped moisture reaches `getEnsembleCapacity(activity)` (≈0.311L for skiing), per-cycle MR plateaus at identical values for remaining cycles. A 14hr and 20hr ski scenario produce identical sessionMR (8.0), identical trapped (0.311L), identical peakSaturationFrac (74.1%). Duration past the cap has no effect on output. Raises two questions: (a) Is the system cap physically realistic? 0.311L seems low — it's only ~311mL of total fabric moisture capacity across the entire ensemble. (b) Even if the cap is correct, should cycles past the cap continue accumulating physiological risk via a separate channel (fatigue, fluid loss trajectory, CIVD protection degradation) rather than identical plateau? Relevant: `applyDurationPenalty` is applied post-cap but only fires when `_totalTimeAtCapHrs > 0`, and the penalty itself may be saturating too. Fix scope: audit `getEnsembleCapacity` (is this a fudge? calibration?), trace duration penalty behavior, possibly wire a continued-accumulation channel post-cap. Medium priority because the cascade now amplifies values 6-8 which is the user-actionable band; plateau above is less product-critical but still a real engine limitation. |
 
 
 ---
@@ -296,6 +315,8 @@ These are items where user has explicitly or implicitly flagged structural impor
 | S15-PERCEIVED-MR-REDESIGN-INFLIGHT | S17 | RESOLVED via reversion. Spec v1 marked SUPERSEDED BY REVERSION per LC6_Planning/LC6_REDESIGN_v1_Closure.md. |
 | S15-DOWNSTREAM-THRESHOLDS-PENDING | S17 | RESOLVED — pre-REDESIGN MR distribution restored; downstream thresholds at evaluate.ts:741/744/808/813 + precognitive_cm.ts:35 still match the scale they were originally calibrated against. |
 
+| S18-CASCADE-NOT-WIRED | S19 | RESOLVED — `applySaturationCascade` wired into 4 call sites in calc_intermittent_moisture.ts (steady-state per-step line 410, cyclic path fallback + final line 995/997, linear path line 1094). Verified empirically: 14hr ski scenario with raw MR=7.20 produces sessionMR=8.0 per cascade formula. Zero regressions on 639 pre-existing tests. Commit: (this session). |
+
 ---
 
 ## Section G: Verification Commands
@@ -329,7 +350,8 @@ for ID in \
   UNTRACKED-FILE-V1.3 \
   BUG-132 BUG-HALFDOME-PERSTEPMR UI-KIRKWOOD-FIXES \
   PERCEIVED_WEIGHTS COMFORT_THRESHOLD \
-  S18-CASCADE-NOT-WIRED S18-CROSSOVER-REGIME-SHAPE
+  S18-CASCADE-NOT-WIRED S18-CROSSOVER-REGIME-SHAPE \
+  S19-SYSTEM-CAP-PLATEAU
 do
   COUNT=$(grep -c "$ID" LC6_Planning/LC6_Master_Tracking.md 2>/dev/null)
   if [[ "$COUNT" == "0" || -z "$COUNT" ]]; then

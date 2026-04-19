@@ -64,6 +64,10 @@ import type { GearItem, GearLayer } from '../ensemble/index.js';
 
 // Moisture (Session 9a-9b)
 import { computePerceivedMR } from './perceived_mr.js';
+import { applySaturationCascade } from './saturation_cascade.js';
+// S19: applySaturationCascade wired into sessionMR pipeline
+// (previously defined + tested + exported but never called in production —
+//  see LC6_Planning/LC6_Master_Tracking.md B.14 S18-CASCADE-NOT-WIRED)
 import {
   CROSSOVER_LITERS,
   FATIGUE_PER_MIN,
@@ -403,7 +407,7 @@ export function calcIntermittentMoisture(
         }
       }
       _perStepTrapped.push(_ssTrapped);
-      _perStepMR.push(Math.min(10, Math.round(7.2 * (_ssTrapped / _ssCap) * 10) / 10));
+      _perStepMR.push(Math.min(10, Math.round(applySaturationCascade(7.2 * (_ssTrapped / _ssCap)) * 10) / 10));
     }
     let _ssMR = _perStepMR.length > 0 ? Math.max(..._perStepMR) : 0;
     if (_ssTimeAtCap > 0) { _ssMR = Math.min(10, Math.round(applyDurationPenalty(_ssMR, _ssTimeAtCap) * 10) / 10); }
@@ -988,7 +992,9 @@ export function calcIntermittentMoisture(
     const _mrCap = getEnsembleCapacity(activity);
     let _sessionMR = (_perCycleMR.length > 0)
       ? _perCycleMR[_perCycleMR.length - 1]!
-      : Math.min(10, Math.round(7.2 * (netTrapped / _mrCap) * 10) / 10);
+      : Math.min(10, Math.round(applySaturationCascade(7.2 * (netTrapped / _mrCap)) * 10) / 10);
+    // S19: cascade applied to final sessionMR (covers the perCycleMR[last] branch too)
+    _sessionMR = Math.min(10, Math.round(applySaturationCascade(_sessionMR) * 10) / 10);
     if (ventEvents && ventEvents.length > 0 && _perCycleMR.length > 1) {
       let _ventMean = 0; for (let _vmi = 0; _vmi < _perCycleMR.length; _vmi++) { _ventMean += _perCycleMR[_vmi]!; }
       _ventMean /= _perCycleMR.length;
@@ -1085,7 +1091,7 @@ export function calcIntermittentMoisture(
     const _linTimeAtCapHrs = _stepsAtCap * (stepInterval / 60);
     const _linTrapped = Math.max(MIN_RETAINED_LITERS, cumMoisture);
     const _linCap = getEnsembleCapacity(activity);
-    let _linSessionMR = Math.min(10, Math.round(7.2 * (_linTrapped / _linCap) * 10) / 10);
+    let _linSessionMR = Math.min(10, Math.round(applySaturationCascade(7.2 * (_linTrapped / _linCap)) * 10) / 10);
     if (_linTimeAtCapHrs > 0) { _linSessionMR = Math.min(10, Math.round(applyDurationPenalty(_linSessionMR, _linTimeAtCapHrs) * 10) / 10); }
     return {
       trapped: _linTrapped, sessionMR: _linSessionMR, timeAtCapHrs: _linTimeAtCapHrs,
