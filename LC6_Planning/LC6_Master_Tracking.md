@@ -16,6 +16,25 @@
 <!-- S18-RECONCILIATION-APPLIED -->
 <!-- S19-APPLIED -->
 <!-- S19-RECONCILIATION-APPLIED -->
+<!-- S20-APPLIED -->
+## Status as of Session 20 (moisture capacity pipeline audit; four findings, zero code changes)
+
+**Branch:** `session-13-phy-humid-v2`
+**Working tree:** clean post-S20 commit
+**Test count:** 641/641 passing (no code changes this session)
+
+**Session 20 outcome:**
+- **S19-SYSTEM-CAP-PLATEAU investigation complete.** The plateau is mechanically correct — not a bug. Hand-computed reconciliation: 302 mL theoretical total cap matches 311 mL observed. MR=7.20 at plateau matches the computePerceivedMR formula exactly when all weighted terms hit max.
+- **4 findings identified** beneath the plateau — see Section B.15 for details. Decomposed the original single item into specific bounded scope for future sessions.
+- **Biggest finding: `weightG` is never populated for ANY real product.** The gear adapter declares `weight?: string` but never parses `"350g"`/`"12 oz"` strings into numeric grams. Every scenario — including real-gear scenarios — uses the `100 + warmth × 20` fallback fudge. HIGH priority, clean S21 target.
+- Full audit report: `LC6_Planning/audits/S20_MOISTURE_CAPACITY_PIPELINE_AUDIT.md`.
+
+**Forward plan:**
+- **S21:** Resolve S20-WEIGHT-STRING-PARSE-GAP. Add string→grams parser in gear adapter, populate `weightG` during `RawGearItem → GearItem` conversion, validate against 1,627-product catalog.
+- **S22+:** S20-DEFAULT-WEIGHT-FUDGE (depends on S21), S20-FIBER-ABSORPTION-VALIDATION (research), S20-DURATION-PENALTY-CEILING, S18-CROSSOVER-REGIME-SHAPE, IREQ Block 2, Phase 1-Corrective.
+
+### Historical record — Session 19 (cascade wired; plateau finding logged)
+
 ## Status as of Session 19 (cascade wired; plateau finding logged)
 
 **Branch:** `session-13-phy-humid-v2`
@@ -213,10 +232,22 @@ Moved to Section F in Session 18 reconciliation. 5 items (S13-PHASE-2-3-DIRTY, S
 |---|---|---|---|
 | S18-CASCADE-NOT-WIRED | HIGH | RESOLVED S19 (moved to Section F) | Fixed in Session 19 commit — `applySaturationCascade` wired into 4 call sites in `calc_intermittent_moisture.ts`. See Section F. |
 | S18-CROSSOVER-REGIME-SHAPE | MEDIUM | Open — design gap, requires research | The saturation cascade model (TA v5 §3.5, `saturation_cascade.html` design poster) documents three physical regimes: Absorption (0-4 linear), Conductive Crossover (4-6 inflection — liquid bridges forming, insulation drops 40-60% per poster), Cascade (6-10 exponential self-reinforcing). The current `applySaturationCascade` function implements only two phases: linear 0-6, quadratic 6-10. The Crossover region is bundled into the linear regime with no distinct math. This is a design gap, not a code bug — the file comment itself says "Phase 1 (0-6): Linear pass-through — Absorption + Crossover". Physical intent: during Crossover, user perception plateaus (Fechner inversion) while thermal conductivity accelerates non-linearly. Output should accelerate in this region to counteract the perception lag, ideally following the actual k-decay curve from Castellani & Young 2016 or equivalent source. Fix scope: dedicated spec session. Research citations (Castellani 2016, Fukazawa wet-fabric conductivity decay, possibly Havenith multilayer models) to define the proper functional form for 4-6 region. |
-| S19-SYSTEM-CAP-PLATEAU | MEDIUM | Open | Discovered during S19 cascade verification. When trapped moisture reaches `getEnsembleCapacity(activity)` (≈0.311L for skiing), per-cycle MR plateaus at identical values for remaining cycles. A 14hr and 20hr ski scenario produce identical sessionMR (8.0), identical trapped (0.311L), identical peakSaturationFrac (74.1%). Duration past the cap has no effect on output. Raises two questions: (a) Is the system cap physically realistic? 0.311L seems low — it's only ~311mL of total fabric moisture capacity across the entire ensemble. (b) Even if the cap is correct, should cycles past the cap continue accumulating physiological risk via a separate channel (fatigue, fluid loss trajectory, CIVD protection degradation) rather than identical plateau? Relevant: `applyDurationPenalty` is applied post-cap but only fires when `_totalTimeAtCapHrs > 0`, and the penalty itself may be saturating too. Fix scope: audit `getEnsembleCapacity` (is this a fudge? calibration?), trace duration penalty behavior, possibly wire a continued-accumulation channel post-cap. Medium priority because the cascade now amplifies values 6-8 which is the user-actionable band; plateau above is less product-critical but still a real engine limitation. |
+| S19-SYSTEM-CAP-PLATEAU | MEDIUM | RESOLVED S20 (moved to Section F) | Investigation complete. Plateau is not a bug — it is the engine correctly reporting a fully-saturated ensemble. Decomposed into 4 specific findings (S20-WEIGHT-STRING-PARSE-GAP, S20-DEFAULT-WEIGHT-FUDGE, S20-FIBER-ABSORPTION-VALIDATION, S20-DURATION-PENALTY-CEILING) — see Section B.15 and audits/S20_MOISTURE_CAPACITY_PIPELINE_AUDIT.md. |
 
 
 ---
+
+### B.15 Session 20 audit findings (moisture capacity pipeline)
+
+Four findings identified during S19-SYSTEM-CAP-PLATEAU investigation, after hand-computed reconciliation showed the plateau itself is mechanically correct. Full analysis: `LC6_Planning/audits/S20_MOISTURE_CAPACITY_PIPELINE_AUDIT.md`.
+
+| ID | Priority | Status | Notes |
+|---|---|---|---|
+| S20-WEIGHT-STRING-PARSE-GAP | **HIGH** | Open — clean bounded fix | The gear adapter declares `RawGearItem.weight?: string` (line 23 of packages/engine/src/gear/adapter.ts). Real catalog entries are strings like `"350g"` or `"12 oz"`. The adapter converts `RawGearItem → EngineGearItem` but NEVER parses these strings into numeric `weightG`. Grep confirms: no call site in packages/engine/src/ populates `weightG`. Consequence: every scenario — including scenarios with real gear — hits the `weightG = 100 + warmth × 20` fallback fudge inside `getLayerCapacity`. Real product weights are never used in moisture capacity computation. Fix scope: one focused session. Add string→grams parser in gear adapter (handle `"12 oz"`, `"12.5 oz"`, `"350 g"`, `"350g"`, empty values), populate `weightG` during conversion, validate against the 1,627-product catalog. Proposed S21 target. |
+| S20-DEFAULT-WEIGHT-FUDGE | MEDIUM | Open — blocked on S20-WEIGHT-STRING-PARSE-GAP | The `weightG = 100 + warmth × 20` fallback in `getLayerCapacity` is uncited. Warmth score does not reliably predict garment weight (a 600g down parka and a 250g high-loft synthetic can share the same warmth score). Proper fix once S20-WEIGHT-STRING-PARSE-GAP is resolved: query the 1,627-product catalog for median `weightG` per slot (base / mid / insulation / shell), use slot-specific medians as the fallback. Citation becomes "median of gear DB, N=X per slot." |
+| S20-FIBER-ABSORPTION-VALIDATION | MEDIUM | Open — research session | `FIBER_ABSORPTION` values [SYNTHETIC: 0.40, WOOL: 0.35, COTTON: 2.00, DOWN: 0.60] in packages/engine/src/ensemble/gear_layers.ts are NOT molecular regain (10-100× higher than textbook regain values). They appear to represent total water retention under saturated wetting (regain + interstitial + surface + capillary). Calibration against observed ski-day plateau (302 mL computed vs 311 mL observed) suggests values are "right flavor" but requires textile science citation. Research sources: ASTM D4772 water retention method, Havenith multilayer fabric dynamics, Fukazawa fabric water retention studies. |
+| S20-DURATION-PENALTY-CEILING | MEDIUM | Open | After all layers saturate, `applyDurationPenalty` is the only mechanism pushing MR higher with sustained time. S19 observed 14hr and 20hr sustained-saturation scenarios produce identical sessionMR=8.0. Penalty saturates at the 7.20 → 8.0 cascade transform level regardless of additional hours. Physiologically, 6+ hours of max-saturation in sub-freezing conditions should carry additional risk (fluid loss trajectory, CIVD degradation, thermal fatigue) that isn't currently reflected in MR. Fix scope: investigate `applyDurationPenalty` function body in packages/engine/src/heat_balance/utilities.ts, reason about whether post-cap trajectory should continue rising or whether a separate physiological channel should contribute. |
+
 
 ## Section C: Constants Audit — Calibrations vs Fudges
 
@@ -319,6 +350,8 @@ These are items where user has explicitly or implicitly flagged structural impor
 
 | PHY-COMPRESSION-CURVE | S19 | RESOLVED — decision: KEEP. S17 reclassified as documented calibration per Sci Foundations §3.5. S19 wired the function into production pipeline and empirically verified the 6-10 quadratic ease-out fires correctly (14hr ski raw MR=7.20 → sessionMR=8.0 matches formula). 4-6 region redesign question separately tracked as S18-CROSSOVER-REGIME-SHAPE. No further compression-curve decision required — any future 4-6 redesign happens under that separate ID. |
 
+| S19-SYSTEM-CAP-PLATEAU | S20 | RESOLVED — decomposed into 4 specific findings. Hand-computed analysis (audit doc: LC6_Planning/audits/S20_MOISTURE_CAPACITY_PIPELINE_AUDIT.md) shows the plateau itself is not a bug: it is the engine correctly reporting a fully-saturated 4-layer ensemble. 302 mL theoretical total cap matches 311 mL observed; MR=7.20 matches computePerceivedMR formula when all weighted terms hit max. Real underlying issues captured as S20-WEIGHT-STRING-PARSE-GAP (HIGH), S20-DEFAULT-WEIGHT-FUDGE, S20-FIBER-ABSORPTION-VALIDATION, S20-DURATION-PENALTY-CEILING — see Section B.15. |
+
 ---
 
 ## Section G: Verification Commands
@@ -353,7 +386,9 @@ for ID in \
   BUG-132 BUG-HALFDOME-PERSTEPMR UI-KIRKWOOD-FIXES \
   PERCEIVED_WEIGHTS COMFORT_THRESHOLD \
   S18-CASCADE-NOT-WIRED S18-CROSSOVER-REGIME-SHAPE \
-  S19-SYSTEM-CAP-PLATEAU
+  S19-SYSTEM-CAP-PLATEAU \
+  S20-WEIGHT-STRING-PARSE-GAP S20-DEFAULT-WEIGHT-FUDGE \
+  S20-FIBER-ABSORPTION-VALIDATION S20-DURATION-PENALTY-CEILING
 do
   COUNT=$(grep -c "$ID" LC6_Planning/LC6_Master_Tracking.md 2>/dev/null)
   if [[ "$COUNT" == "0" || -z "$COUNT" ]]; then
