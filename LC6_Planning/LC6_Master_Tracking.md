@@ -17,6 +17,7 @@
 <!-- S19-APPLIED -->
 <!-- S19-RECONCILIATION-APPLIED -->
 <!-- S20-APPLIED -->
+<!-- S20-RECONCILIATION-APPLIED -->
 ## Status as of Session 20 (moisture capacity pipeline audit; four findings, zero code changes)
 
 **Branch:** `session-13-phy-humid-v2`
@@ -149,7 +150,7 @@ Session 15 halted at spec §7 gate while implementing REDESIGN v1. Retained here
 | PHY-GEAR-WARMTH-CAL | LOW (FROZEN) | Open | warmthRatio→CLO breakpoints per ISO 15831 manikin |
 | PHY-GEAR-BREATH-CAL | LOW (FROZEN) | Open | breathability→im slope/offset via Woodcock/Fukazawa |
 | PHY-GEAR-02 | LOW | Open | score_products.js lower.insulation classification |
-| PHY-GEAR-03 | LOW | Open | Gear catalog curation sweep |
+| PHY-GEAR-03 | LOW | Open | Gear catalog curation sweep. Cross-ref: S20-WEIGHT-STRING-PARSE-GAP (B.15) is a concrete specific instance of this broader sweep — resolving that ticket handles one slice of the curation work. |
 
 ### B.5 Session 12 PHY-HUMID-01 follow-ups
 
@@ -174,7 +175,7 @@ Session 15 halted at spec §7 gate while implementing REDESIGN v1. Retained here
 | PHY-PR-CHILL-WEIGHT | MEDIUM | Open | Ensemble saturation combination weight (placeholder 0.5 in backward-compat wrapper); needs empirical data |
 | PHY-EVAP-CAP-0.85 | MEDIUM | Open — present in LC6, validation pending | Sci Foundations §3.3 0.85 evaporation rate cap. S19 audit confirmed present at 2 sites in calc_intermittent_moisture.ts (steady-state line 387, linear line 1067): `Math.min(0.85, waderEvapFloor(...))`. The 0.85 ceiling is the physical upper bound on evaporative efficiency fraction. Open question: constant validation against published data (psychrometric/woodcock). Presence audit: DONE. Physical-value validation: PENDING. |
 | PHY-HUMIDITY-FLOOR | MEDIUM | Open — present in LC6, validation pending | Sci Foundations §3.4 humidity floor factor. S19 audit confirmed `humidityFloorFactor` function in heat_balance/utilities.ts:48; imported by calc_intermittent_moisture.ts and split_body.ts; called at split_body.ts:160 (`0.02 * humidityFloorFactor(rh)`). Function body not reviewed in this audit; whether it matches LC5 formula `MR_floor = max(0, (H-60)/40)×4.0` still needs verification. Presence audit: DONE. Formula-match audit: PENDING. |
-| PHY-COLD-PENALTY | MEDIUM → HIGH design decision | Open — NOT PRESENT in LC6; deliberate-vs-oversight question flagged | Sci Foundations §3.2 describes `trapped×5 + cold_penalty` with f_suit=2.5 as additive MR term. S19 audit: grep for `coldPenalty`, `cold_penalty`, `f_suit` returned ZERO matches in packages/engine/src/. LC6 architecture uses different MR construction — `computePerceivedMR` is buffer-weighted (per-layer saturation × 7.2 scaling), with cold effects propagating through energy balance (lower T_ambient → more sweat → more buffer fill), NOT through an additive cold penalty term. This is a design-vs-port difference that must be explicitly resolved: (a) LC6 architecture is intentional replacement and cold effects are correctly captured via energy balance — no port needed. OR (b) cold_penalty is a missing term that should be added back. Requires Chat decision with user input before any code action. Priority bumped because the answer affects cold-weather MR fidelity — the exact territory Christian flagged as under-reading. |
+| PHY-COLD-PENALTY | MEDIUM → HIGH design decision | Open — NOT PRESENT in LC6; deliberate-vs-oversight question flagged | Sci Foundations §3.2 describes `trapped×5 + cold_penalty` with f_suit=2.5 as additive MR term. S19 audit: grep for `coldPenalty`, `cold_penalty`, `f_suit` returned ZERO matches in packages/engine/src/. LC6 architecture uses different MR construction — `computePerceivedMR` is buffer-weighted (per-layer saturation × 7.2 scaling), with cold effects propagating through energy balance (lower T_ambient → more sweat → more buffer fill), NOT through an additive cold penalty term. This is a design-vs-port difference that must be explicitly resolved: (a) LC6 architecture is intentional replacement and cold effects are correctly captured via energy balance — no port needed. OR (b) cold_penalty is a missing term that should be added back. Requires Chat decision with user input before any code action. Priority bumped because the answer affects cold-weather MR fidelity — the exact territory Christian flagged as under-reading. **S20 update:** the energy-balance channel itself saturates once layers hit cap (see S19-SYSTEM-CAP-PLATEAU closure + S20-DURATION-PENALTY-CEILING). So the 'no port needed, energy balance captures it' argument is weaker than it first appeared — if layers are capped and duration penalty saturates at 8.0, there's no channel by which further cold exposure can raise MR. This strengthens the case that a cold_penalty term (or equivalent mechanism) may actually be needed. Decision deferred to dedicated session. |
 
 ### B.8 Code-level TODO markers
 
