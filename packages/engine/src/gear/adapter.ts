@@ -264,6 +264,7 @@ function convertClothingItem(raw: RawGearItem, ctx: ConvertContext): EngineGearI
     fiber,
     wicking: raw.moisture ?? 5,
     spec_confidence: ctx.specConfidence,
+    ...(raw.weight ? { weight_category: raw.weight as "ultralight" | "light" | "mid" | "heavy" } : {}),
   };
 }
 

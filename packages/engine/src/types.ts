@@ -593,6 +593,8 @@ export interface EngineGearItem {
   lower_limit_f?: number;
   fill_power?: number;
   r_value?: number;
+  /** Categorical weight tier from gear catalog. S21: bridges to weightG in mapGearItems. */
+  weight_category?: "ultralight" | "light" | "mid" | "heavy";
 }
 
 export interface GearEnsemble {

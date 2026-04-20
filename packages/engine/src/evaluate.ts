@@ -35,6 +35,8 @@ import type {
   CmCard,
   CmTriggerState,
   StageDetectionInput,
+  GearSlot,
+  GearSubslot,
 } from './types.js';
 
 import { identifyCriticalMoments, buildStrategyWindows } from './scheduling/index.js';
@@ -986,6 +988,71 @@ function cloToWarmthRatio(clo: number): number {
   return Math.min(10, 7 + (clo - 0.50) / 0.17);
 }
 
+/**
+ * Map categorical weight tier → representative grams per slot.
+ *
+ * CITATION: Compiled internet search and AI search, April 19 2026.
+ * Backpacking/alpine community ranges for Men's Medium, corroborated by
+ * Adventure Alan / YouTube / Facebook outdoor gear community sources.
+ * Both sets agree within normal variance.
+ *
+ * Midpoint convention: each tier is the midpoint of its range.
+ * For "ultralight" (which is an open-ended "< X" bin), uses 0.8 × tier ceiling.
+ *
+ * These are seed values for the moisture-capacity pipeline. When affiliate
+ * partner data provides actual garment weights (numeric grams), those values
+ * supersede this table. Peer matching can also impute weight_category when
+ * missing on a product (see adapter.ts imputeAttributes, weight uses modeOf).
+ *
+ * SKIP slots: footwear, sleeping_bag, sleeping_pad, immersion — these use
+ * different physics paths (boots/sleep/water) and do not flow through the
+ * per-layer moisture-capacity calculation.
+ */
+function weightCategoryToGrams(
+  category: "ultralight" | "light" | "mid" | "heavy" | undefined,
+  slot: GearSlot,
+  subslot?: GearSubslot,
+): number {
+  if (!category) {
+    // No categorical input — fall back to slot median.
+    // Values = midpoint of 'light' tier per slot (reasonable typical gear).
+    const slotFallback: Partial<Record<GearSlot, number>> = {
+      base: 160, mid: 265, insulative: 295, shell: 255,
+      legwear: 295, headgear: 40, handwear: 55, neck: 40,
+    };
+    return slotFallback[slot] ?? 200;
+  }
+
+  // Legwear uses subslot to pick the right sub-table.
+  if (slot === 'legwear') {
+    // Shell pants: lower_ski_shell, lower_shell
+    if (subslot === 'lower_ski_shell' || subslot === 'lower_shell') {
+      const t = { ultralight: 110, light: 210, mid: 355, heavy: 510 };
+      return t[category];
+    }
+    // Leg base: lower_base
+    if (subslot === 'lower_base') {
+      const t = { ultralight: 90, light: 155, mid: 210, heavy: 320 };
+      return t[category];
+    }
+    // Everything else (pants, insulated, bike, unspecified): use Pants values
+    const t = { ultralight: 180, light: 295, mid: 425, heavy: 610 };
+    return t[category];
+  }
+
+  // Upper body + accessories
+  const tables: Partial<Record<GearSlot, Record<"ultralight" | "light" | "mid" | "heavy", number>>> = {
+    base:       { ultralight: 90,  light: 160, mid: 225, heavy: 320 },
+    mid:        { ultralight: 160, light: 265, mid: 395, heavy: 570 },
+    insulative: { ultralight: 180, light: 295, mid: 440, heavy: 640 },
+    shell:      { ultralight: 135, light: 255, mid: 410, heavy: 610 },
+    headgear:   { ultralight: 20,  light: 40,  mid: 70,  heavy: 115 },
+    handwear:   { ultralight: 25,  light: 55,  mid: 110, heavy: 190 },
+    neck:       { ultralight: 25,  light: 40,  mid: 70,  heavy: 115 },
+  };
+  return tables[slot]?.[category] ?? 200;
+}
+
 /** Map EngineGearItem[] to ensemble module's GearItem format. */
 function mapGearItems(ensemble: GearEnsemble): EnsembleGearItem[] {
   return ensemble.items.map(item => ({
@@ -993,6 +1060,7 @@ function mapGearItems(ensemble: GearEnsemble): EnsembleGearItem[] {
     im: item.im,
     warmth: item.clo,
     warmthRatio: cloToWarmthRatio(item.clo),  // required by calcIntermittentMoisture _gearCLO sum
+    weightG: weightCategoryToGrams(item.weight_category, item.slot, item.subslot),  // S21: populate from categorical
     breathability: item.breathability ?? 5,
     waterproof: item.waterproof ?? 0,
     windResist: item.wind_resistance ?? 3,
