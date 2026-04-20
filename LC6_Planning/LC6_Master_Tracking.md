@@ -18,6 +18,36 @@
 <!-- S19-RECONCILIATION-APPLIED -->
 <!-- S20-APPLIED -->
 <!-- S20-RECONCILIATION-APPLIED -->
+<!-- S21-APPLIED -->
+<!-- S21-RECONCILIATION-APPLIED -->
+<!-- S22-APPLIED -->
+<!-- S22-RECONCILIATION-APPLIED -->
+## Status as of Session 22 (PHY-HUMID-01 v2 Category C shipped; LC5↔LC6 fidelity audit documented)
+
+**Branch:** `session-13-phy-humid-v2` (pushed to origin)
+**Working tree:** clean post-S22 commits
+**Test count:** 643/643 passing
+**Head:** 1a0728e (Session 22 cleanup: .claude/ gitignore) → 51885be (Finding 4 ship) → fb2f32c (S21 pipeline + audit)
+
+**Session 21 outcome:**
+- **S20-WEIGHT-STRING-PARSE-GAP resolved via categorical pipeline.** Extended `EngineGearItem` with `weight_category` field (ultralight/light/mid/heavy). `weightCategoryToGrams()` slot-aware lookup populates `weightG` in `mapGearItems`, replacing the `100 + warmth × 20` fudge that was previously hit for ALL products. Seed gram table cited: compiled internet + AI search April 19 2026, midpoint convention, Men's Medium.
+- **LC5↔LC6 physics fidelity audit complete.** Extracted LC5 `calcIntermittentMoisture` + dependency tree (2,520 lines) into `packages/engine/reference/lc5_risk_functions.js`. Seven findings documented in `LC6_Planning/audits/S21_LC5_LC6_PHYSICS_FIDELITY_AUDIT.md`.
+  - Finding 1 (applySaturationCascade) — FIXED S19
+  - Findings 2, 3, 4 — BUG INHERITED from LC5 (open)
+  - Findings 5, 6, 7 — PORTED CORRECTLY from LC5
+- **§8.5 root cause analysis:** S21 duration-sweep regression is not port drift. Emergent interaction of `_systemCap` + `COMFORT_THRESHOLD` + outer-fill-fraction — invisible pre-S21 because weightG was always the fudge. S21 infrastructure correctly exposes a pre-existing physics gap.
+
+**Session 22 outcome:**
+- **Finding 4 shipped (commit `51885be`).** `_aHygro` now routed to outermost layer buffer inside cycle loop per PHY-HUMID-01 v2 §2.2 Category C. Activates formerly-dead cyclic-path hygroscopic absorption. Scaled by 1000 (liters→grams). §7 gate: no Category-C-specific preconditions required per spec.
+- **Tracker cleanup (commit `1a0728e`):** `.claude/` added to `.gitignore`.
+- **Zero test regressions:** 643/643 holds across both commits.
+
+**Forward plan:**
+- **S23 target:** Finding 3 — Categories A + B of PHY-HUMID-01 v2 §2.3 (vapor condensation via `_condensWeights` unchanged input; liquid-at-skin direct-to-base routing). Blocked on §7 hand-computed reference scenarios per memory #30.
+- **S24+ targets:** Finding 2 (Magnus-derived per-layer `_tDewMicro`), §5.1 item 4 (delete `dryAirBonus`/`_localDryBonus`/`humidityFloorFactor` fudges), §5.1 item 6 (H3 hand-verification), §8.5 new spec for post-saturation drying physics (Havenith 2008 / Rossi 2005 kit-mass drying drag).
+
+### Historical record — Session 20 (moisture capacity pipeline audit; four findings, zero code changes)
+
 ## Status as of Session 20 (moisture capacity pipeline audit; four findings, zero code changes)
 
 **Branch:** `session-13-phy-humid-v2`
@@ -105,7 +135,7 @@ Session 15 halted at spec §7 gate while implementing REDESIGN v1. Retained here
 | Spec ID | Version | Status | Raised | File | Notes |
 |---|---|---|---|---|---|
 | PHY-GEAR-01 | v2 | RATIFIED + IMPLEMENTED | S11 | specs/PHY-GEAR-01_Spec_v2_RATIFIED.md | 1,627-product catalog live |
-| PHY-HUMID-01 | v2 | RATIFIED, PARTIALLY IMPLEMENTED | S12 | specs/PHY-HUMID-01_Spec_v2_RATIFIED.md | Phase 1 shipped e9d56b5; Phase 2+3 held (working tree dirty) |
+| PHY-HUMID-01 | v2 | RATIFIED, PARTIALLY IMPLEMENTED | S12 | specs/PHY-HUMID-01_Spec_v2_RATIFIED.md | §5.1 items 1+5 shipped (helpers S13 e9d56b5; Category C wired S22 51885be). Items 2-4 pending §10 hand-compute gate. Item 6 (H3 verification) outstanding. |
 | PHY-PERCEIVED-MR-REDESIGN | v1 | **SUPERSEDED BY REVERSION (S17)** | S14 | specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v1_RATIFIED.md | Reverted Session 17. Retained output layer (7.2 + cascade + 40mL threshold) reclassified as calibration. See `LC6_Planning/LC6_REDESIGN_v1_Closure.md`. |
 
 ---
@@ -244,11 +274,26 @@ Four findings identified during S19-SYSTEM-CAP-PLATEAU investigation, after hand
 
 | ID | Priority | Status | Notes |
 |---|---|---|---|
-| S20-WEIGHT-STRING-PARSE-GAP | **HIGH** | Open — clean bounded fix | The gear adapter declares `RawGearItem.weight?: string` (line 23 of packages/engine/src/gear/adapter.ts). Real catalog entries are strings like `"350g"` or `"12 oz"`. The adapter converts `RawGearItem → EngineGearItem` but NEVER parses these strings into numeric `weightG`. Grep confirms: no call site in packages/engine/src/ populates `weightG`. Consequence: every scenario — including scenarios with real gear — hits the `weightG = 100 + warmth × 20` fallback fudge inside `getLayerCapacity`. Real product weights are never used in moisture capacity computation. Fix scope: one focused session. Add string→grams parser in gear adapter (handle `"12 oz"`, `"12.5 oz"`, `"350 g"`, `"350g"`, empty values), populate `weightG` during conversion, validate against the 1,627-product catalog. Proposed S21 target. |
-| S20-DEFAULT-WEIGHT-FUDGE | MEDIUM | Open — blocked on S20-WEIGHT-STRING-PARSE-GAP | The `weightG = 100 + warmth × 20` fallback in `getLayerCapacity` is uncited. Warmth score does not reliably predict garment weight (a 600g down parka and a 250g high-loft synthetic can share the same warmth score). Proper fix once S20-WEIGHT-STRING-PARSE-GAP is resolved: query the 1,627-product catalog for median `weightG` per slot (base / mid / insulation / shell), use slot-specific medians as the fallback. Citation becomes "median of gear DB, N=X per slot." |
+| S20-WEIGHT-STRING-PARSE-GAP | RESOLVED | S21 (moved to Section F) | Resolved via categorical `weight_category` pipeline instead of string parser. See Section F. |
+| S20-DEFAULT-WEIGHT-FUDGE | MEDIUM | Open — partially resolved by S21 | S21 replaced the `100 + warmth × 20` fudge with a `weightCategoryToGrams()` slot-aware lookup sourced from compiled internet + AI search (April 2026, midpoint convention, Men's Medium). Remaining work: (a) validate seed values against a textile-science reference or catalog-median derivation; (b) refine per affiliate-partner actual-weight data as catalog grows. Citation discipline met (compiled search trace cited in-code and in S21 commit fb2f32c); upgrade path documented. |
 | S20-FIBER-ABSORPTION-VALIDATION | MEDIUM | Open — research session | `FIBER_ABSORPTION` values [SYNTHETIC: 0.40, WOOL: 0.35, COTTON: 2.00, DOWN: 0.60] in packages/engine/src/ensemble/gear_layers.ts are NOT molecular regain (10-100× higher than textbook regain values). They appear to represent total water retention under saturated wetting (regain + interstitial + surface + capillary). Calibration against observed ski-day plateau (302 mL computed vs 311 mL observed) suggests values are "right flavor" but requires textile science citation. Research sources: ASTM D4772 water retention method, Havenith multilayer fabric dynamics, Fukazawa fabric water retention studies. |
 | S20-DURATION-PENALTY-CEILING | MEDIUM | Open | After all layers saturate, `applyDurationPenalty` is the only mechanism pushing MR higher with sustained time. S19 observed 14hr and 20hr sustained-saturation scenarios produce identical sessionMR=8.0. Penalty saturates at the 7.20 → 8.0 cascade transform level regardless of additional hours. Physiologically, 6+ hours of max-saturation in sub-freezing conditions should carry additional risk (fluid loss trajectory, CIVD degradation, thermal fatigue) that isn't currently reflected in MR. Fix scope: investigate `applyDurationPenalty` function body in packages/engine/src/heat_balance/utilities.ts, reason about whether post-cap trajectory should continue rising or whether a separate physiological channel should contribute. |
 
+
+### B.16 Session 21 LC5↔LC6 physics fidelity audit findings
+
+Seven findings identified comparing LC5 `calcIntermittentMoisture` + dependency tree (extracted to `packages/engine/reference/lc5_risk_functions.js`, 2,520 lines) against LC6 port. Full analysis: `LC6_Planning/audits/S21_LC5_LC6_PHYSICS_FIDELITY_AUDIT.md`.
+
+| ID | Priority | Status | Notes |
+|---|---|---|---|
+| S21-F1-CASCADE | RESOLVED | S19 (already in Section F) | `applySaturationCascade` defined but never called in LC5 cyclic path. LC6 S19 wired it into sessionMR pipeline. LC6 ahead of LC5 here. |
+| S21-F2-HARDCODED-SKIN-DEW | HIGH | Open — blocked on §10 gate | Hardcoded `_tSkinRetC=30` / `_tDewMicro=29` at LC6 `calc_intermittent_moisture.ts:740-741` (matches LC5:2790-2791 verbatim). PHY-HUMID-01 v2 §5.1 item 2 + §3.2. Magnus helpers exist in `heat_balance/vpd.ts:70,93` (`magnusDewPoint`, `inverseMagnus`) but never imported. Over-retains in cold-dry, under-retains in warm-humid — biases the trapped-moisture signal that distinguishes heavy from ultralight kits across conditions. Fix per spec §3.2: `_tSkinRetC = _TskRun` (already computed per-cycle); `_tDewMicro` derived per-layer via Magnus. |
+| S21-F3-LIQUID-SKIN-GATE | HIGH | Open — blocked on §10 gate | Liquid-at-skin (`_excessHr`, `_liftExcessG`, `_insensibleG`) routed via `_condensWeights` and gated by `_netRetention` at LC6 lines 749-751,769 (matches LC5:2803-2828 verbatim). PHY-HUMID-01 v2 §2.2 Category B requires direct-to-base routing without gate per Kubota et al. 2021. Replacement code ready in §2.3. Fix scope: surgical edit pattern identical to S22 Category C fix (commit `51885be`). Hand-computed H1/H2/H3 reference scenarios required before edit. |
+| S21-F4-AHYGRO-DEAD-CODE | RESOLVED | S22 (moved to Section F) | `_aHygro` was dead code in LC6 cyclic path (assigned to unused `cycleNet`). Fixed S22 per PHY-HUMID-01 v2 §2.2 Category C. See Section F. |
+| S21-F5-CONDENS-WEIGHTS-HARDCODE-DEPENDENCY | Observational | Open — depends on S21-F2 | `_condensWeights` thermal-gradient distribution (shell ~51%, insulation ~31%, mid ~15%, base ~3%) is ported correctly as a mechanism. However it is driven by the hardcoded `_tDewMicro` (F2). Fixing F2 also activates the per-layer Magnus drive for F5. No independent work required. |
+| S21-F6-PERCEIVED-MR | RESOLVED | S21 audit verification | `computePerceivedMR` (40 mL absolute base threshold + fill-fraction outer layers) ported correctly from LC5 1:1. Fukazawa 2003 anchor retained per S17 closure. No work required. |
+| S21-F7-CASCADE-WICKING-DRAIN | RESOLVED | S21 audit verification | Inward overflow cascade, Washburn 1921 bidirectional wicking, `getDrainRate` shell drain all ported correctly from LC5 1:1. Constants match (wicking default 7, 0.5 Courant damping, Schlünder 1988 `_outerFill` modulation). No work required. |
+| S21-CROSSOVER-REGRESSION-ROOTCAUSE | MEDIUM | Open — new spec needed (S24+) | Per audit §8.5: S21 duration-sweep regression (heavy kit peak_MR stays monotonically BELOW ultralight across 2–20 hr) is NOT a port drift. Emergent interaction of three design decisions (`_systemCap` scales with kit mass; `COMFORT_THRESHOLD` is fixed; outer-fill-fraction scales inversely with cap). Invisible pre-S21 because `weightG` was always the fudge. Fix requires new spec for post-saturation drying physics (Havenith 2008 / Rossi 2005: kit-mass-dependent drying drag). Proposed form: `drain_effective = getDrainRate / sqrt(sum(layer.cap)/reference_cap)`. Multi-session scope. |
 
 ## Section C: Constants Audit — Calibrations vs Fudges
 
@@ -352,6 +397,10 @@ These are items where user has explicitly or implicitly flagged structural impor
 | PHY-COMPRESSION-CURVE | S19 | RESOLVED — decision: KEEP. S17 reclassified as documented calibration per Sci Foundations §3.5. S19 wired the function into production pipeline and empirically verified the 6-10 quadratic ease-out fires correctly (14hr ski raw MR=7.20 → sessionMR=8.0 matches formula). 4-6 region redesign question separately tracked as S18-CROSSOVER-REGIME-SHAPE. No further compression-curve decision required — any future 4-6 redesign happens under that separate ID. |
 
 | S19-SYSTEM-CAP-PLATEAU | S20 | RESOLVED — decomposed into 4 specific findings. Hand-computed analysis (audit doc: LC6_Planning/audits/S20_MOISTURE_CAPACITY_PIPELINE_AUDIT.md) shows the plateau itself is not a bug: it is the engine correctly reporting a fully-saturated 4-layer ensemble. 302 mL theoretical total cap matches 311 mL observed; MR=7.20 matches computePerceivedMR formula when all weighted terms hit max. Real underlying issues captured as S20-WEIGHT-STRING-PARSE-GAP (HIGH), S20-DEFAULT-WEIGHT-FUDGE, S20-FIBER-ABSORPTION-VALIDATION, S20-DURATION-PENALTY-CEILING — see Section B.15. |
+
+| S20-WEIGHT-STRING-PARSE-GAP | S21 | RESOLVED — resolved via categorical pipeline instead of string parser. Extended EngineGearItem with `weight_category` field (ultralight/light/mid/heavy). New `weightCategoryToGrams(category, slot, subslot)` in evaluate.ts:1011 with slot-aware + legwear-subslot-aware gram mappings. `mapGearItems` populates weightG, replacing the `100 + warmth × 20` fudge. Citation for seed values: compiled internet + AI search April 19 2026, midpoint convention, Men's Medium. Commit: fb2f32c. |
+
+| S21-F4-AHYGRO-DEAD-CODE | S22 | RESOLVED — `_aHygro` wired to outermost layer buffer inside cycle loop per PHY-HUMID-01 v2 §2.2 Category C. Two surgical edits to calc_intermittent_moisture.ts: (1) removed dead `cycleNet` assignment at line 539, (2) added `_layers[_layers.length - 1]!.buffer += _aHygro * 1000` after `_fabricInG` distribution, before overflow cascade. Scaled by 1000 to convert liters (hygroAbsorption return unit) to grams (layer.buffer unit). §10 gate: no Category-C-specific preconditions per spec §7. 643/643 tests passing (verified pre + post edit). Commit: 51885be. |
 
 ---
 
