@@ -22,6 +22,33 @@
 <!-- S21-RECONCILIATION-APPLIED -->
 <!-- S22-APPLIED -->
 <!-- S22-RECONCILIATION-APPLIED -->
+<!-- S23-APPLIED -->
+<!-- S23-RECONCILIATION-APPLIED -->
+## Status as of Session 23 (PHY-SHELL-GATE spec draft authored; reference scenario registry established)
+
+**Branch:** `session-13-phy-humid-v2` (pushed to origin)
+**Working tree:** clean post-S23 commits
+**Test count:** 643/643 passing (no code changes this session — spec + registry + tracker only)
+**Head:** 5f059bf (S23 spec + registry + tracker) → 67cab32 (S22 tracker reconciliation) → 51885be (S22 Finding 4 ship)
+
+**Session 23 target reframing:**
+- Original target was Finding 3 (PHY-HUMID-01 v2 §2.3 Categories A+B) per S22 forward plan.
+- S23 investigation revealed three interrelated physics gaps that must be addressed together before Finding 3 implementation produces correct results: shell-as-gate vs sponge, cascade asymmetric, microclimate VP feedback.
+- Pivoted to multi-session unified moisture physics rewrite per user decision. Finding 3 implementation deferred to S26+ after prerequisite specs ratify.
+
+**Session 23 outcome:**
+- **PHY-SHELL-GATE v1 DRAFT authored** (`LC6_Planning/specs/PHY-SHELL-GATE_Spec_v1_DRAFT.md`). 484 lines. Classifies shells into 5 types (hardshell / softshell / wind shell / insulated shell / drysuit) with literature-anchored absorption coefficients (Nylon 6,6 regain, ASTM D4772, ISO 811 citations). Proposes slot-aware `getLayerCapacity` and `classifyShell` resolver function.
+- **Reference scenario registry established** (`LC6_Planning/reference_scenarios/README.md`). Framework for literature-anchored test scenarios that replace engine-output-captured assertions. Named S-001 through S-004 per shell-gate spec §6. Lifecycle: skeleton → literature-anchored → hand-computed → validated.
+- **Eight new tracker items logged in Section B.17.** Three new HIGH-priority physics specs to draft (shell-capacity, cascade-asymmetric, microclimate-VP), two bounded fixes (breathabilityToIm divergence, FiberType drift), three follow-on concerns (MR anchor re-validation, drying thermal drag, perceived-weights direction).
+- **§5.1 item 4 fudge deletion scoped** but not executed. Lower gate burden than shell-gate dependencies; viable for S24 alongside cascade spec drafting.
+
+**Forward plan:**
+- **S24 target:** Author `PHY-CASCADE-SYMMETRIC` spec (base overflow → outward cascade). Optionally ship §5.1 item 4 fudge deletion in parallel since it's independent.
+- **S25 target:** Author `PHY-MICROCLIMATE-VP` spec (shell im throttle feedback on evaporation). Begin capturing reference scenario baselines (S-001 through S-004).
+- **S26+ target:** Ratification review for all three shell-gate/cascade/VP specs. Implementation as single coherent change.
+
+### Historical record — Session 22 (PHY-HUMID-01 v2 Category C shipped; LC5↔LC6 fidelity audit documented)
+
 ## Status as of Session 22 (PHY-HUMID-01 v2 Category C shipped; LC5↔LC6 fidelity audit documented)
 
 **Branch:** `session-13-phy-humid-v2` (pushed to origin)
@@ -294,6 +321,21 @@ Seven findings identified comparing LC5 `calcIntermittentMoisture` + dependency 
 | S21-F6-PERCEIVED-MR | RESOLVED | S21 audit verification | `computePerceivedMR` (40 mL absolute base threshold + fill-fraction outer layers) ported correctly from LC5 1:1. Fukazawa 2003 anchor retained per S17 closure. No work required. |
 | S21-F7-CASCADE-WICKING-DRAIN | RESOLVED | S21 audit verification | Inward overflow cascade, Washburn 1921 bidirectional wicking, `getDrainRate` shell drain all ported correctly from LC5 1:1. Constants match (wicking default 7, 0.5 Courant damping, Schlünder 1988 `_outerFill` modulation). No work required. |
 | S21-CROSSOVER-REGRESSION-ROOTCAUSE | MEDIUM | Open — new spec needed (S24+) | Per audit §8.5: S21 duration-sweep regression (heavy kit peak_MR stays monotonically BELOW ultralight across 2–20 hr) is NOT a port drift. Emergent interaction of three design decisions (`_systemCap` scales with kit mass; `COMFORT_THRESHOLD` is fixed; outer-fill-fraction scales inversely with cap). Invisible pre-S21 because `weightG` was always the fudge. Fix requires new spec for post-saturation drying physics (Havenith 2008 / Rossi 2005: kit-mass-dependent drying drag). Proposed form: `drain_effective = getDrainRate / sqrt(sum(layer.cap)/reference_cap)`. Multi-session scope. |
+
+### B.17 Session 22-23 moisture physics gaps (unified rewrite scope)
+
+Eight findings identified during S22 evening Finding 3 gate-clearance discussion and S23 morning unified-rewrite scoping. Together these form the scope of the multi-session moisture physics rewrite. See `LC6_Planning/specs/PHY-SHELL-GATE_Spec_v1_DRAFT.md` §1 for physics framing.
+
+| ID | Priority | Status | Notes |
+|---|---|---|---|
+| S22-SHELL-CAPACITY-MODEL | HIGH | Open — spec draft authored (S23) | Shell layers currently treated as liquid-absorbing reservoirs with `weightG × FIBER_ABSORPTION[SYNTHETIC] = 0.40` cap. Physical reality: hardshells are vapor-transport gates via `im`; liquid capacity is <5% of modeled value. A 300g Gore-Tex jacket gets 128 mL cap in code vs ~6 mL in physical reality. See `PHY-SHELL-GATE_Spec_v1_DRAFT.md` for full treatment. Literature-anchored coefficients: hardshell 0.02 (Nylon 6,6 regain), softshell 0.12 (ASTM D4772), wind shell 0.05, drysuit 0.035. Blocks Finding 3 implementation. |
+| S22-CASCADE-ASYMMETRIC | HIGH | Open — spec pending (S24 target) | Overflow cascade at `calc_intermittent_moisture.ts:772-775` runs outer→inner only. When base (index 0) exceeds cap, line 776 silently clamps: excess liquid vanishes from simulation. Physically incorrect — real liquid cascades outward through mid → insulation → shell via capillary action before drip occurs. Fix requires symmetric inward→outward cascade mirroring existing outer→inner cascade. Discovered S22 evening during "layers as sponge" physics discussion. |
+| S22-MICROCLIMATE-VP | HIGH | Open — spec pending (S25 target) | When shell `im` throttles vapor flux outward (humid ambient, saturated conditions), microclimate VP inside clothing rises. Rising microclimate VP reduces skin-to-microclimate VPD, which throttles evaporation at skin itself. This feedback loop is not currently modeled — code computes sweat rate and evap rate independently of internal VP state. Affects `computeEmax` during sustained humid activity. Requires tracking microclimate VP as engine state. |
+| S22-BREATHABILITY-TO-IM-DIVERGENCE | MEDIUM | Open — small bounded fix | Two diverging implementations of `breathabilityToIm`: `adapter.ts:105-107` (linear: `0.05 + b/10 × 0.40`, b=7 yields im=0.33) vs `gear_layers.ts:127-134` (piecewise: b=7 yields im=0.20). Same gear produces different im depending on code path. Consolidate to single source of truth. |
+| S22-FIBERTYPE-TYPE-DRIFT | MEDIUM | Open — small bounded fix | `types.ts:569` defines `FiberType = "synthetic" \| "wool" \| "cotton" \| "down" \| "blend"` (lowercase, 5 values). `gear_layers.ts:9` defines `FiberType = 'WOOL' \| 'COTTON' \| 'SYNTHETIC' \| 'DOWN'` (uppercase, 4 values). Adapter must translate between them. Single source of truth needed. |
+| S22-MR-VALIDATION-ANCHOR-CONTAMINATED | MEDIUM | Open — post-shell-gate work | S17 closure designated TA v5 §3.5 95% RH / 20°F Rocky Mountain scenario (MR=4.3) as the validation anchor for the 7.2 output scale. That anchor was produced by an engine with broken upstream physics (shell cap, cascade asymmetry, microclimate VP unmodeled). After shell-gate / cascade / VP specs ship, must re-run this anchor scenario to confirm 7.2 scale still holds. If anchor fails post-fix, upgrade to HIGH and open new spec for MR output layer calibration. |
+| S22-DRYING-THERMAL-DRAG | MEDIUM | Open — cross-concern for heat balance engine | Shell research (S23 morning): softshell at 72 mL saturation represents ~45 Wh evaporative heat load. Drying a saturated softshell over 3hr consumes roughly 50% of resting metabolic output (80-100W). Heat balance engine currently does not subtract this thermal cost from user metabolic budget. Not a moisture model fix — affects CDI/HLR calculations downstream. Cross-concern, not blocking shell-gate. |
+| S22-PERCEIVED-WEIGHTS-DIRECTION | MEDIUM | Open — revisit post-shell-gate | User argument (S23 morning): `PERCEIVED_WEIGHTS = [3, 2, 1.5, 1]` encodes Fukazawa-style skin-centric perception, but this misrepresents the physics signal. Base saturation is a binary failure indicator (whole-system saturation has occurred), not a proportional contributor. Weighting base highest makes MR climb gradually with base fill when it should hit max when base crosses threshold. Upgrades existing PHY-WEIGHTS-CAL (S17 classification) from ratio-tuning question to direction-questioning question. Blocked on post-shell-gate re-validation of MR output layer. |
 
 ## Section C: Constants Audit — Calibrations vs Fudges
 
