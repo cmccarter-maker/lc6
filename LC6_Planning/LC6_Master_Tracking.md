@@ -24,7 +24,41 @@
 <!-- S22-RECONCILIATION-APPLIED -->
 <!-- S23-APPLIED -->
 <!-- S23-RECONCILIATION-APPLIED -->
-## Status as of Session 23 (PHY-SHELL-GATE spec draft + PHY-HUMID-01 v2 §4.1 fudge deletion shipped)
+<!-- S24-APPLIED -->
+<!-- S24-RECONCILIATION-APPLIED -->
+## Status as of Session 24 (Two HIGH items closed through physics-first audit, no code changes)
+
+**Branch:** `session-13-phy-humid-v2` (pushed to origin)
+**Working tree:** clean
+**Working directory:** `~/Desktop/LC6-local`
+**Test count:** 644/644 passing (no code changes this session — tracker-only work)
+**Head:** ba97e45 (S24 close: B→F migration) → 4322117 (S24 F2: CASCADE-ASYMMETRIC closed + MICROCLIMATE-VP sharpened) → 8784d5c (S24 F1: HUMIDITY-FLOOR-VALIDATION closed) → d3ccad2 (S23 close) → 39b2846 (S23 fudge deletion)
+
+**Session 24 target reframing:**
+- Original target per S23 forward plan: author `PHY-CASCADE-SYMMETRIC` spec.
+- S24 physics-first audit (extended Socratic discussion) revealed CASCADE-ASYMMETRIC was misdiagnosis. Engine correctly handles terminal-saturation physics via three coexisting mechanisms. No spec needed.
+- Secondary work on `S22-HUMIDITY-FLOOR-VALIDATION` also revealed misdiagnosis. `humidityFloorFactor` is wader-specific evap floor, not Cooper Landing fudge.
+- Session pivoted from spec-authoring to tracker-hygiene, closing two items through understanding rather than implementation.
+
+**Session 24 outcome:**
+- **F1 — `S22-HUMIDITY-FLOOR-VALIDATION` RESOLVED** (commit `8784d5c`). Code audit revealed exactly ONE real caller: `waderEvapFloor` at `split_body.ts:160`. Wader-specific evap floor, not redundant with `vpdRatio`. Floor retained as physically defensible. PHY-HUMID-01 v2 §4.2 claim was incorrect. Moved to Section F.
+- **F2 — `S22-CASCADE-ASYMMETRIC` RESOLVED** (commit `4322117`). Code audit revealed engine correctly handles terminal saturation via three coexisting mechanisms: (1) bidirectional Washburn wicking at lines 779-797 handles outward liquid flow when fill gradient exists; (2) inward-only overflow cascade at 772-777 correctly models external moisture pressure (one-directional because driving physics is); (3) `_vaporExitHr = Math.min(sweatGPerHr, eMax/L_V × 3600)` at line 734 captures drip-as-residual — `_excessHr` IS the drip residual between sweat production and vapor transport. User's physics derivation converged on engine's existing approach. No spec needed. Moved to Section F.
+- **`S22-MICROCLIMATE-VP` scope sharpened** (commit `4322117`). Specific code-location diagnosis added to tracker item: `getDrainRate` at `calc_intermittent_moisture.ts:808-809` uses ambient `humidity` parameter, not microclimate humidity at shell inner surface. `computeEmax` at lines 671/702 same issue. At terminal fabric saturation, microclimate RH → 100%, should drive shell drain toward zero. Engine continues computing against ambient RH — overstates evaporative cooling. This is the real remaining gap in saturation-regime physics.
+- **Close — B→F migration** (commit `ba97e45`). Moved resolved items from B.15/B.17 to proper Section F entries per Section H ritual. Section F count: 23 → 25.
+
+**Net tracker change S24:** -2 items (1 HIGH closed, 1 MEDIUM closed). Zero new items added. First genuinely net-negative session in this arc.
+
+**Session 24 outcome (meta):**
+- Three of four recent moisture-physics item closures have been misdiagnoses (S21-F4 dead code in S22, S22-HUMIDITY-FLOOR-VALIDATION in S24, S22-CASCADE-ASYMMETRIC in S24). Pattern suggests tracker items should be physics-audited before implementation work begins. Closures through understanding are as valuable as closures through implementation.
+- Unified moisture-physics rewrite scope has collapsed from three HIGH items to essentially one: `S22-MICROCLIMATE-VP`. Plus `S22-SHELL-CAPACITY-MODEL` spec already drafted (S23). S26+ implementation much simpler than originally feared.
+
+**Forward plan:**
+- **S25 target:** Author `PHY-MICROCLIMATE-VP_Spec_v1_DRAFT.md`. Scope sharpened by S24 findings (concrete code locations, focused on microclimate humidity threading through `getDrainRate` and `computeEmax`). Optionally: begin populating reference scenarios `S-001` through `S-004` with literature-anchored expected values.
+- **S26 target:** Ratification review of both `PHY-SHELL-GATE` (drafted S23) and `PHY-MICROCLIMATE-VP` (drafted S25) specs. Decide implementation ordering.
+- **S27-S28 target:** Coordinated implementation of shell-gate + microclimate-VP changes. Potentially also S21-F2 (Magnus dew point) and S21-F3 (liquid-skin routing) since §10 gate may clear with upstream physics settled.
+- **S29 target:** Regression validation + reference scenario population. Declare moisture-physics cluster closed.
+
+### Historical record — Session 23 (PHY-SHELL-GATE spec draft + PHY-HUMID-01 v2 §4.1 fudge deletion shipped)
 
 **Branch:** `session-13-phy-humid-v2` (pushed to origin)
 **Working tree:** clean
