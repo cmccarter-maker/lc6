@@ -382,8 +382,7 @@ export function calcIntermittentMoisture(
       const _stepSr = sweatRate(_ssInt, _localTemp, _localRH, sex, weightLb, activity, immersionGear, paceMul, golfCartRiding, undefined, snowTerrain, packLoadMul, undefined, fitnessProfile) * (paceMul ?? 1.0) * _descentMul * _gradeMul;
       const _stepSweat = _stepSr * _stepDurHrs / 1000;
       const _localVpd = vpdRatio(_localTemp, _localRH);
-      const _localDryBonus = _localRH < 20 ? 1.8 : _localRH < 30 ? 1.4 : _localRH < 40 ? 1.15 : 1.0;
-      const _stepEvapRaw = (_ssVEvap / 20) * _localVpd * _ssImF * _localDryBonus;
+      const _stepEvapRaw = (_ssVEvap / 20) * _localVpd * _ssImF;
       const _stepEvapRate = Math.min(0.85, waderEvapFloor(_stepEvapRaw, _localRH, waderType, fishWading));
       const _stepEvap = _stepSweat * _stepEvapRate;
       _ssTrapped += Math.max(0, _stepSweat - _stepEvap);
@@ -448,7 +447,6 @@ export function calcIntermittentMoisture(
   const imFactor = _effectiveIm ? (_effectiveIm / BASELINE_IM) : 1.0;
   const cloFactor = clothingInsulation(tempF, effInt || 'moderate');
   const drysuitEvapBlock = isDrysuit ? 0.15 : 1.0;
-  const dryAirBonus = humidity < 20 ? 1.8 : humidity < 30 ? 1.4 : humidity < 40 ? 1.15 : 1.0;
 
   // === CLOSURES: phaseSweatRate + getPhaseWind ===
   const phaseSweatRate = (phaseInt: string, phaseDurMin: number | undefined, phaseName: string): number => {
@@ -526,7 +524,7 @@ export function calcIntermittentMoisture(
       const _phVentWR = phase.canVent ? _cSwr * 0.5 : _cSwr;
       const _phVEvap = V_BOUNDARY_MPH + phaseWind * getWindPenetration(_phVentWR);
       const _phVpd = vpdRatio(tempF, _adjHumidity);
-      const _phRawEvap = (_phVEvap / 20) * _phVpd * ventedMul * imFactor * drysuitEvapBlock * dryAirBonus * _altEvap;
+      const _phRawEvap = (_phVEvap / 20) * _phVpd * ventedMul * imFactor * drysuitEvapBlock * _altEvap;
       const evapRate = waderEvapFloor(_phRawEvap, humidity, waderType, fishWading);
       const evaporated = Math.min(produced, evapRate * produced);
       const retained = Math.max(MIN_RETAINED_LITERS / profile!.phases.length, produced - evaporated);
@@ -1066,7 +1064,7 @@ export function calcIntermittentMoisture(
       const _lVpd = vpdRatio(tempF, humidity);
       const _lVentWR = phase.canVent ? _lSwr * 0.5 : _lSwr;
       const _lVEvap = V_BOUNDARY_MPH + phaseWind * getWindPenetration(_lVentWR);
-      const _lRawEvap = (_lVEvap / 20) * _lVpd * ventedMul * imFactor * drysuitEvapBlock * dryAirBonus;
+      const _lRawEvap = (_lVEvap / 20) * _lVpd * ventedMul * imFactor * drysuitEvapBlock;
       const evapRate = Math.min(0.85, waderEvapFloor(_lRawEvap, humidity, waderType, fishWading));
       const steps = Math.max(1, Math.round(phaseMin / stepInterval));
       const stepDur = phaseMin / steps;
