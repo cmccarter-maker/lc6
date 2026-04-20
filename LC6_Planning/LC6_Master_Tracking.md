@@ -24,26 +24,36 @@
 <!-- S22-RECONCILIATION-APPLIED -->
 <!-- S23-APPLIED -->
 <!-- S23-RECONCILIATION-APPLIED -->
-## Status as of Session 23 (PHY-SHELL-GATE spec draft authored; reference scenario registry established)
+## Status as of Session 23 (PHY-SHELL-GATE spec draft + PHY-HUMID-01 v2 §4.1 fudge deletion shipped)
 
 **Branch:** `session-13-phy-humid-v2` (pushed to origin)
-**Working tree:** clean post-S23 commits
-**Test count:** 643/643 passing (no code changes this session — spec + registry + tracker only)
-**Head:** 5f059bf (S23 spec + registry + tracker) → 67cab32 (S22 tracker reconciliation) → 51885be (S22 Finding 4 ship)
+**Working tree:** clean
+**Working directory:** `~/Desktop/LC6-local` (migrated out of iCloud per S23 workflow discovery)
+**Test count:** 644/644 passing (643 original + 1 new diagnostic for fudge deletion verification)
+**Head:** 39b2846 (fudge deletion + verify test) → 020f21a (baseline snapshot) → a6bd255 (S23 spec commit) → 67cab32 (S22 tracker reconciliation) → 51885be (S22 Finding 4 ship)
 
 **Session 23 target reframing:**
 - Original target was Finding 3 (PHY-HUMID-01 v2 §2.3 Categories A+B) per S22 forward plan.
 - S23 investigation revealed three interrelated physics gaps that must be addressed together before Finding 3 implementation produces correct results: shell-as-gate vs sponge, cascade asymmetric, microclimate VP feedback.
 - Pivoted to multi-session unified moisture physics rewrite per user decision. Finding 3 implementation deferred to S26+ after prerequisite specs ratify.
+- Additionally shipped PHY-HUMID-01 v2 §4.1 fudge deletion in-session (independent of shell-gate work, already ratified).
 
-**Session 23 outcome:**
-- **PHY-SHELL-GATE v1 DRAFT authored** (`LC6_Planning/specs/PHY-SHELL-GATE_Spec_v1_DRAFT.md`). 484 lines. Classifies shells into 5 types (hardshell / softshell / wind shell / insulated shell / drysuit) with literature-anchored absorption coefficients (Nylon 6,6 regain, ASTM D4772, ISO 811 citations). Proposes slot-aware `getLayerCapacity` and `classifyShell` resolver function.
-- **Reference scenario registry established** (`LC6_Planning/reference_scenarios/README.md`). Framework for literature-anchored test scenarios that replace engine-output-captured assertions. Named S-001 through S-004 per shell-gate spec §6. Lifecycle: skeleton → literature-anchored → hand-computed → validated.
-- **Eight new tracker items logged in Section B.17.** Three new HIGH-priority physics specs to draft (shell-capacity, cascade-asymmetric, microclimate-VP), two bounded fixes (breathabilityToIm divergence, FiberType drift), three follow-on concerns (MR anchor re-validation, drying thermal drag, perceived-weights direction).
-- **§5.1 item 4 fudge deletion scoped** but not executed. Lower gate burden than shell-gate dependencies; viable for S24 alongside cascade spec drafting.
+**Session 23 outcome (strategic):**
+- **PHY-SHELL-GATE v1 DRAFT authored** (`LC6_Planning/specs/PHY-SHELL-GATE_Spec_v1_DRAFT.md`). 484 lines. Classifies shells into 5 types with literature-anchored absorption coefficients (Nylon 6,6 regain, ASTM D4772, ISO 811 citations). Proposes slot-aware `getLayerCapacity` and `classifyShell` resolver.
+- **Reference scenario registry established** (`LC6_Planning/reference_scenarios/README.md`). Framework for literature-anchored test scenarios replacing engine-output-captured assertions.
+- **Nine new tracker items logged in Section B.17.** Three HIGH-priority physics specs to draft, two bounded fixes, four follow-on concerns including `S22-HUMIDITY-FLOOR-VALIDATION` added this session.
+
+**Session 23 outcome (tactical):**
+- **Baseline snapshot captured** (`LC6_Planning/baselines/S23_pre_fudge_deletion.md`) documenting pre-deletion engine state and expected behavioral changes by RH bracket.
+- **PHY-HUMID-01 v2 §4.1 fudge deletion shipped** (commit `39b2846`). Removed `dryAirBonus` (line 451) and `_localDryBonus` (line 385) plus 3 callsites. Staircase multipliers of VPD narrowing that were redundant with `vpdRatio` Magnus-formula physics. 4 surgical edits via Python str_replace. File shrunk 240 chars.
+- **Verification test added** (`packages/engine/tests/diagnostics/s23_fudge_deletion_verify.test.ts`). 10 scenarios including 4 isolation scenarios (16F skiing 6hr, same gear, only RH varies). Results: I1 50% RH peakMR 3.10 → I4 15% RH peakMR 2.90. Monotonic decrease confirms `vpdRatio` dominates post-deletion; removed fudges were providing redundant boost on top of Magnus physics.
+- **`humidityFloorFactor` deletion DEFERRED** pending investigation. PHY-HUMID-01 v2 §4.2 calls it redundant with `vpdRatio` but S23 morning chat history review revealed its original purpose was Cooper Landing protection (stationary fishing 100% RH). S22 commit `51885be` shipped `_aHygro` which may now handle that regime, but not verified. Logged as `S22-HUMIDITY-FLOOR-VALIDATION` in B.17.
+
+**Session 23 outcome (workflow infrastructure):**
+- **Repo migrated out of iCloud** to `~/Desktop/LC6-local`. iCloud sync was causing friction (file shuffling for each Claude-created artifact) and caused Code Desktop to crash when re-enabled. GitHub remains canonical source. Old iCloud path retained temporarily as backup.
 
 **Forward plan:**
-- **S24 target:** Author `PHY-CASCADE-SYMMETRIC` spec (base overflow → outward cascade). Optionally ship §5.1 item 4 fudge deletion in parallel since it's independent.
+- **S24 target:** Author `PHY-CASCADE-SYMMETRIC` spec (base overflow → outward cascade). Could also investigate `S22-HUMIDITY-FLOOR-VALIDATION` if appetite.
 - **S25 target:** Author `PHY-MICROCLIMATE-VP` spec (shell im throttle feedback on evaporation). Begin capturing reference scenario baselines (S-001 through S-004).
 - **S26+ target:** Ratification review for all three shell-gate/cascade/VP specs. Implementation as single coherent change.
 
@@ -336,6 +346,7 @@ Eight findings identified during S22 evening Finding 3 gate-clearance discussion
 | S22-MR-VALIDATION-ANCHOR-CONTAMINATED | MEDIUM | Open — post-shell-gate work | S17 closure designated TA v5 §3.5 95% RH / 20°F Rocky Mountain scenario (MR=4.3) as the validation anchor for the 7.2 output scale. That anchor was produced by an engine with broken upstream physics (shell cap, cascade asymmetry, microclimate VP unmodeled). After shell-gate / cascade / VP specs ship, must re-run this anchor scenario to confirm 7.2 scale still holds. If anchor fails post-fix, upgrade to HIGH and open new spec for MR output layer calibration. |
 | S22-DRYING-THERMAL-DRAG | MEDIUM | Open — cross-concern for heat balance engine | Shell research (S23 morning): softshell at 72 mL saturation represents ~45 Wh evaporative heat load. Drying a saturated softshell over 3hr consumes roughly 50% of resting metabolic output (80-100W). Heat balance engine currently does not subtract this thermal cost from user metabolic budget. Not a moisture model fix — affects CDI/HLR calculations downstream. Cross-concern, not blocking shell-gate. |
 | S22-PERCEIVED-WEIGHTS-DIRECTION | MEDIUM | Open — revisit post-shell-gate | User argument (S23 morning): `PERCEIVED_WEIGHTS = [3, 2, 1.5, 1]` encodes Fukazawa-style skin-centric perception, but this misrepresents the physics signal. Base saturation is a binary failure indicator (whole-system saturation has occurred), not a proportional contributor. Weighting base highest makes MR climb gradually with base fill when it should hit max when base crosses threshold. Upgrades existing PHY-WEIGHTS-CAL (S17 classification) from ratio-tuning question to direction-questioning question. Blocked on post-shell-gate re-validation of MR output layer. |
+| S22-HUMIDITY-FLOOR-VALIDATION | MEDIUM | Open — investigation needed | `humidityFloorFactor` at `heat_balance/utilities.ts:48` (callsite `split_body.ts:160`) serves as evaporation floor in saturated conditions. PHY-HUMID-01 v2 §4.2 proposed deletion as "redundant with vpdRatio" but S23 morning chat-history review revealed its original purpose was Cooper Landing protection: stationary fisher at 100% RH where sweat-only model under-predicts MR. S22 commit `51885be` activated `_aHygro` routing which may now handle that regime correctly, making the floor redundant. Not verified. Deletion deferred from S23 fudge-deletion commit `39b2846` pending proper investigation. Scope: run Cooper Landing (35°F/100% RH/stationary fishing/6hr) through engine before and after floor deletion to confirm MR behavior is preserved via `_aHygro`. Test file `s23_fudge_deletion_verify.test.ts` can be extended with Cooper Landing scenario. |
 
 ## Section C: Constants Audit — Calibrations vs Fudges
 
