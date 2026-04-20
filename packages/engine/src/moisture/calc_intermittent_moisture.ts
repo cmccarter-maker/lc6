@@ -536,7 +536,7 @@ export function calcIntermittentMoisture(
     });
 
     const _aHygro = hygroAbsorption(tempF, humidity, ensembleIm ?? 0, DEFAULT_REGAIN_POLYESTER);
-    const cycleNet = phaseData.reduce((s, pd) => s + pd.retained, 0) + _aHygro;
+    // PHY-HUMID-01 v2 Finding 4: cycleNet was dead code (declared but never referenced in cyclic path). _aHygro is now applied to outermost layer buffer inside the cycle loop per §2.2 Category C.
     let cumMoisture = initialTrapped ?? 0;
     let _cyclesAtCap = 0;
     const _perCycleTrapped: number[] = [];
@@ -767,6 +767,9 @@ export function calcIntermittentMoisture(
       if (_cwSum > 0) { for (let _cwi = 0; _cwi < _condensWeights.length; _cwi++) { _condensWeights[_cwi] = _condensWeights[_cwi]! / _cwSum; } }
       else { _condensWeights[_condensWeights.length - 1] = 1.0; }
       for (let _di = 0; _di < _layers.length; _di++) { _layers[_di]!.buffer += _fabricInG * _condensWeights[_di]!; }
+
+      // PHY-HUMID-01 v2 §2.2 Category C: ambient vapor absorbed from outside routes directly to outermost layer (shell). Activates _aHygro previously dead in cyclic path (Finding 4 of S21 LC5↔LC6 physics fidelity audit). _aHygro is per-cycle liters; multiply by 1000 to convert to grams for layer.buffer.
+      _layers[_layers.length - 1]!.buffer += _aHygro * 1000;
 
       // Overflow cascade inward
       for (let _oi = _layers.length - 1; _oi > 0; _oi--) {
