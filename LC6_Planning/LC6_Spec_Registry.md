@@ -32,7 +32,7 @@ Registry uses reality-based status, not filename-based. The two can disagree —
 | PHY-GEAR-01 v2 | Gear thermal properties model | RATIFIED | ACTIVE | packages/engine/src/ensemble/gear_layers.ts (4 refs) | 14 test refs | a8e4988 (S11) | No |
 | PHY-HUMID-01 v2 | Humidity regime physics (§4.1 fudge delete + Category C _aHygro) | RATIFIED | PARTIAL | packages/engine/src/moisture/calc_intermittent_moisture.ts (4 refs) | 2 test refs | 773f995 (S12), updated S23 | §2.3 Cat A+B and §3.2 Magnus pending; unified under PHY-MICROCLIMATE-VP per S25 |
 | PHY-PERCEIVED-MR-REDESIGN v1 | Perceived MR redesign | RATIFIED (filename) | REVERTED (reality) | packages/engine/src/moisture/perceived_mr.ts (pre-REDESIGN code restored) | 0 test refs | 3ce33fe (S17 revert) | **YES — filename/reality mismatch** |
-| PHY-031 | Component Cycle Model (crowd tiers, holiday windows, line + transition + rest) | RATIFIED | PARTIAL | LC6 spec: LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md. Engine: Partial (mogul runMin 10→7 only). cycleOverride scaffolding exists but null-plugged at evaluate.ts:430. S29 target: full port per S27 audit Option A. | 0 test refs (25 .todo in spec-locks/phy-031-component-cycle.test.ts awaiting S29 port) | {S28_COMMIT_SHA} (S28) | **Spec ratified S28. Implementation gap remains — tracked as S29 target, not drift.** |
+| PHY-031 | Component Cycle Model (crowd tiers, holiday windows, line + transition + rest) | RATIFIED | PARTIAL | LC6 spec: LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md. Engine: Partial (mogul runMin 10→7 only). cycleOverride scaffolding exists but null-plugged at evaluate.ts:430. S29 target: full port per S27 audit Option A. | 0 test refs (25 .todo in spec-locks/phy-031-component-cycle.test.ts awaiting S29 port) | 3a4b4d1113264c40a0752aa3ba1e43b43aa866f2 (S28) | **Spec ratified S28. Implementation gap remains — tracked as S29 target, not drift.** |
 | PHY-HUMID-01 v1 | Humidity regime physics (legacy, contained _excessRetention=0.10 fudge) | RATIFIED (filename) | SUPERSEDED (reality) | N/A (superseded by v2) | N/A | Superseded by v2 at 773f995 | **YES — filename should be SUPERSEDED** |
 
 ### Draft specs (not yet ratified, no implementation expected)
@@ -74,7 +74,7 @@ These are immediate cleanup items surfaced by building this registry.
 
 ### DRIFT-3: PHY-031 has no LC6 spec file — CLOSED S28
 
-**On-disk:** `LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md` (ratified S28, April 21, 2026, commit `{S28_COMMIT_SHA}`)
+**On-disk:** `LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md` (ratified S28, April 21, 2026, commit `3a4b4d1113264c40a0752aa3ba1e43b43aa866f2`)
 **Reality:** Spec RATIFIED in LC6 per S28. Engine implementation remains 12.5% complete — tracked as S29 port target, not spec drift.
 **Resolution action (completed S28):** Spec authored from LC5 archive + S27 audit + 6 S28 open-question resolutions. 616 lines, 18 sections. Content covers: component cycle formula, 6-tier crowd calendar, 10 holiday windows (including new Thanksgiving window), powder-day surge with auto-detection, ski history Phase A integration, cycle-averaging Cardinal Rule, 7 worked examples, S29 verification criteria, Model Refinement future-work register.
 **Reference:** `LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md`
