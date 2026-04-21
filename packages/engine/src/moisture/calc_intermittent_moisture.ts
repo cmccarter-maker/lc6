@@ -735,6 +735,13 @@ export function calcIntermittentMoisture(
       _surfacePassHr = getDrainRate(tempF, humidity, windMph, _outerL.im, _totalCLO, _bsa);
       const _condensHr = Math.max(0, _vaporExitHr - _surfacePassHr);
       const _excessHr = Math.max(0, _srRun.sweatGPerHr - _vaporExitHr);
+
+      // DIAGNOSTIC: env-guarded per-cycle trace for S26-SYSTEMATIC-MR-UNDERESTIMATION investigation (S27). No behavior change.
+      if (process.env.LC6_TRACE_S001) {
+        // eslint-disable-next-line no-console
+        console.log(`cycle=${c} isWarmup=${_isWarmup} MET=${_cycleMET.toFixed(2)} windMs=${(_windMs + _cycleSpeedWMs).toFixed(2)} effIm=${(_effectiveIm ?? 0).toFixed(3)} Tsk=${_TskRun.toFixed(2)} Ereq=${_eReqRun.toFixed(1)} Emax=${_emaxRun.eMax.toFixed(1)} sweatGhr=${_srRun.sweatGPerHr.toFixed(0)} runMin=${_runMin} cycleProdG=${_cycleProdG.toFixed(1)} vaporExitHr=${_vaporExitHr.toFixed(0)} excessHr=${_excessHr.toFixed(0)}`);
+      }
+
       const _tSkinRetC = 30;
       const _tDewMicro = 29;
       const _RcloHalf = _totalCLO * 0.155 * 0.5;
