@@ -30,7 +30,62 @@
 <!-- S25-RECONCILIATION-APPLIED -->
 <!-- S26-APPLIED -->
 <!-- S26-RECONCILIATION-APPLIED -->
-## Status as of Session 26 (Diagnostic reveals sweat rate underestimation; spec ratification deferred pending investigation)
+<!-- S27-APPLIED -->
+<!-- S27-RECONCILIATION-APPLIED -->
+## Status as of Session 27 (Root cause identified as PHY-031 unported; retention infrastructure established)
+
+**Branch:** `session-13-phy-humid-v2` (pushed to origin)
+**Working tree:** clean
+**Working directory:** `~/Desktop/LC6-local`
+**Head:** 2e33590 (S27 spec-lock tests) → 57a469e (S27 registry) → 0cce64c (S27 audit) → 6984c77 (S27 trace) → ae6ed6c (S27 probe) → 2654a8b (S27 F0)
+
+**Session 27 narrative arc:**
+S27 opened intending sweat-rate physics investigation per S26 forward plan. Direct-probe of `iterativeTSkin` produced E_req=558W uncompensable → sweatGhr=827 when given plausible inputs. Per-cycle trace via env-guarded instrumentation revealed engine sees MET=5 for all 36 cycles, producing 76 mL/hr fluid loss — internally consistent with profile definition but 5-10x below user-reported reality. Sequential hypothesis elimination:
+
+- NOT thermal solver (probe proved correct output)
+- NOT computeSweatRate primitive (probe proved correct output)
+- NOT a "two sweat rates" unification issue (engine uses Gagge-derived rate directly in cyclic path — my initial misdiagnosis corrected by Code's careful grep, and reinforced when Chat had to be reminded cycle-averaging violates phase-resolution principle)
+- **IS an unported spec:** PHY-031 component cycle model (crowd tiers, holiday windows, line+transition+rest times) ratified in LC5 Mar 17 only 12.5% ported to LC6
+
+User surfaced the meta-concern: "LC6 was supposed to prevent LC5's rogue-engine problem but we're in the same pattern. Fixes don't stay fixed." Pivot to building retention infrastructure before further fixes.
+
+**S27 output — 3-step retention plan delivered:**
+
+- **Step 1 (0cce64c):** `LC6_Planning/audits/S27_PHY-031_PORT_STATUS_AUDIT.md` (242 lines). Documents PHY-031's 12.5% port status. Scaffolding present (cycleOverride slot, profile comment acknowledging design), bridge null-plugged at `evaluate.ts:430` with comment "No cycle override in 10a".
+- **Step 2 (57a469e):** `LC6_Planning/LC6_Spec_Registry.md` (153 lines). Replaces S14-era 13-line stub that drifted for 13 sessions. Canonical registry distinguishing filename status from engine reality. Status vocabulary: ACTIVE, PARTIAL, NOT_PORTED, DRAFT, REVERTED, SUPERSEDED. Surfaces 3 drift items logged below.
+- **Step 3 (2e33590):** `packages/engine/tests/spec-locks/phy-031-component-cycle.test.ts` (156 lines). 6 Tier A assertions passing (profile constants per spec), 25 Tier B `.todo` placeholders awaiting port. New test subdirectory `spec-locks/` dedicated to ratified-spec enforcement.
+
+**Prep work (pre-retention-plan commits):**
+
+- `ae6ed6c` S-001 iterativeTSkin direct-probe diagnostic (223 lines, no engine changes)
+- `6984c77` env-guarded per-cycle trace in calc_intermittent_moisture.ts (7 lines, LC6_TRACE_S001 env-gated, Cardinal Rule #8 compliant)
+- `2654a8b` F0 backfill of Session 26 status block (hygiene recurrence fix)
+
+**Zero engine-physics changes this session.** Pure investigation + infrastructure. No Cardinal Rule violations.
+
+**Drift items surfaced (all logged in B.17):**
+- `S27-DRIFT-1-PERCEIVED-MR-FILENAME` LOW — filename says RATIFIED, reality is REVERTED (S17)
+- `S27-DRIFT-2-HUMID-V1-FILENAME` LOW — filename says RATIFIED, reality is SUPERSEDED (by v2)
+- `S27-DRIFT-3-PHY-031-NO-SPEC` HIGH — PHY-031 ratified in LC5 but no LC6 spec file exists
+
+**Related concerns surfaced by audit:**
+- `S27-DUAL-BREATHABILITY-MAPPING` MEDIUM — two `breathabilityToIm` functions with same name, different formulas (gear_layers.ts piecewise vs gear/adapter.ts linear)
+- `S27-TSC-ERRORS-BASELINE` LOW — 8 pre-existing `tsc --noEmit` errors in test files (unrelated to S27 work)
+
+**S26-SYSTEMATIC-MR-UNDERESTIMATION reframed:** Not a physics bug. Not a thermal solver bug. Architectural feature that was scoped but not wired. Fix is PHY-031 port completion (audit Option A), not new spec authoring. Closure blocked on S28+S29 execution.
+
+**Forward plan (revised from S26 forward plan):**
+
+- **S28 target:** Author LC6 PHY-031 spec doc (Option C from S27 close). Port-back from LC5 archives + audit findings into `LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md`. Resolves DRIFT-3. Addresses remaining open questions from original ratification (Thanksgiving treatment, user override selector, resort-specific multiplier, powder day surge, climate normals default). No implementation yet.
+- **S29 target:** Execute PHY-031 port implementation. Build `getCrowdFactor(dateStr)` utility. Define constants `DEFAULT_LIFT_MIN=7`, `TRANSITION_MIN=3`, `REST_FRACTION=0.20`. Wire `evaluate.ts:430` to compute cycleOverride from date + crowd tier. Add ski-history parameter + back-calc path (Phase A manual entry). Convert spec-lock Tier B `.todo` items to `.it` as each component lands. S26 closes when port complete and verified against S-001 trace.
+- **S30+ targets:**
+  - Tackle DRIFT-1 and DRIFT-2 (LOW, 10 min cleanup each)
+  - Resume PHY-SHELL-GATE v1 and PHY-MICROCLIMATE-VP v1 ratification path (both remain correct physics, were correctly deferred)
+  - Address S27-DUAL-BREATHABILITY-MAPPING MEDIUM
+
+**Net tracker change S27:** +5 new items (3 DRIFT + 2 related concerns). 1 item status update (S26-SYSTEMATIC-MR-UNDERESTIMATION). Forward plan materially revised.
+
+### Historical record — Session 26 (Diagnostic reveals sweat rate underestimation; spec ratification deferred pending investigation)
 
 **Branch:** `session-13-phy-humid-v2` (pushed to origin)
 **Working tree:** clean
@@ -275,6 +330,7 @@ Session 15 halted at spec §7 gate while implementing REDESIGN v1. Retained here
 |---|---|---|---|---|---|
 | PHY-GEAR-01 | v2 | RATIFIED + IMPLEMENTED | S11 | specs/PHY-GEAR-01_Spec_v2_RATIFIED.md | 1,627-product catalog live |
 | PHY-HUMID-01 | v2 | RATIFIED, PARTIALLY IMPLEMENTED | S12 | specs/PHY-HUMID-01_Spec_v2_RATIFIED.md | §5.1 items 1+5 shipped (helpers S13 e9d56b5; Category C wired S22 51885be). Items 2-4 pending §10 hand-compute gate. Item 6 (H3 verification) outstanding. |
+| PHY-031 | LC5-v1 (no LC6 file yet) | NOT_PORTED (~12.5%; cycleOverride null-plugged) | S17 scaffold / S27 discovery | LC6_Planning/audits/S27_PHY-031_PORT_STATUS_AUDIT.md | Component cycle model ratified LC5 Mar 17. Crowd tiers (6), holiday windows (9), component cycle formula, TRANSITION_MIN, REST_FRACTION, ski history integration — none ported to LC6. Only mogul runMin 10→7 correction made it. Scaffolding present at calc_intermittent_moisture.ts:247,297,500-504 but bridge null-plugged at evaluate.ts:430. Root cause of S26-SYSTEMATIC-MR-UNDERESTIMATION. Remediation: S28 = author LC6 spec doc; S29 = implement port. Spec-lock tests at packages/engine/tests/spec-locks/phy-031-component-cycle.test.ts (25 .todo placeholders convert to .it as port lands). Tracker refs: B.18 S27-DRIFT-3-PHY-031-NO-SPEC, LC6_Spec_Registry.md DRIFT-3. |
 | PHY-PERCEIVED-MR-REDESIGN | v1 | **SUPERSEDED BY REVERSION (S17)** | S14 | specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v1_RATIFIED.md | Reverted Session 17. Retained output layer (7.2 + cascade + 40mL threshold) reclassified as calibration. See `LC6_Planning/LC6_REDESIGN_v1_Closure.md`. |
 
 ---
@@ -450,7 +506,19 @@ Eight findings identified during S22 evening Finding 3 gate-clearance discussion
 | S22-PERCEIVED-WEIGHTS-DIRECTION | MEDIUM | Open — revisit post-shell-gate | User argument (S23 morning): `PERCEIVED_WEIGHTS = [3, 2, 1.5, 1]` encodes Fukazawa-style skin-centric perception, but this misrepresents the physics signal. Base saturation is a binary failure indicator (whole-system saturation has occurred), not a proportional contributor. Weighting base highest makes MR climb gradually with base fill when it should hit max when base crosses threshold. Upgrades existing PHY-WEIGHTS-CAL (S17 classification) from ratio-tuning question to direction-questioning question. Blocked on post-shell-gate re-validation of MR output layer. |
 | S22-HUMIDITY-FLOOR-VALIDATION | MEDIUM | RESOLVED S24 (moved to Section F) | See Section F. Investigation revealed humidityFloorFactor is wader-specific evap floor, not Cooper Landing fudge — retained as physically defensible. |
 | S25-LINEAR-PATH-MICROCLIMATE-VP | MEDIUM | Open | The linear/steady-state path in `calc_intermittent_moisture.ts` (lines 1060-1095, especially `_lVpd = vpdRatio(tempF, humidity)` at line 1064) uses ambient humidity throughout. Similar microclimate concern as PHY-MICROCLIMATE-VP but in the simpler linear-path physics. Not in scope for PHY-MICROCLIMATE-VP v1 DRAFT (§7.1) to keep that spec bounded. Expected to be a smaller spec — linear path has simpler per-layer physics. Flag for future session, lower priority than cyclic path since most heavy-exertion scenarios (where microclimate effect matters most) route through cyclic not linear. |
-| S26-SYSTEMATIC-MR-UNDERESTIMATION | HIGH | Open — under investigation S26+ | User has reported for weeks that perceived MR readings feel consistently too low. Mapped specific scenarios where engine showed 15-20 hours of ski time before MR reached saturation-level readings, while lived experience was saturation (uncomfortable, soaked mid-layer) after 3-5 hours. **S26 scoping work revealed:** with real ensemble capacity math (Smartwool 250 + R1 Air + Nano Puff + Beta LT = ~336g total liquid cap via FIBER_ABSORPTION × weightCategoryToGrams), naive time-to-saturation at typical skiing sweat rates is 2-4 hours, NOT 15-20. Multiple possible root causes: (a) PHY-MICROCLIMATE-VP gap (drain against ambient RH rather than microclimate RH, overstating transport at saturation — spec already drafted, expected +2 MR points at terminal saturation); (b) PERCEIVED_WEIGHTS output scaling calibration; (c) applySaturationCascade curve shape in midrange (linear 0-6, quadratic 6-10 — possibly compresses midrange signal); (d) cold penalty scaling `P_cold = (40-T_a)/10 × f_suit` may under-weight cold effect on perceived moisture discomfort; (e) some combination. PHY-MICROCLIMATE-VP likely contributes significantly but may not be sole cause. Investigation should quantify each contributor via controlled scenarios using real engine output vs user-reported experience. Deliverable: decomposition of the MR gap into specific formula-level causes, each closeable as its own spec/fix. Could surface need for additional specs beyond current pipeline (PHY-SHELL-GATE, PHY-MICROCLIMATE-VP). |
+| S26-SYSTEMATIC-MR-UNDERESTIMATION | HIGH | Open — root cause identified S27, closure blocked on PHY-031 port (S28 spec + S29 impl) | **Original symptom:** User reported for weeks that perceived MR readings feel consistently too low. Engine showed 15-20 hours of ski time before MR reached saturation-level readings, while lived experience was saturation (uncomfortable, soaked mid-layer) after 3-5 hours. **S26 investigation:** with real ensemble capacity math (Smartwool 250 + R1 Air + Nano Puff + Beta LT = ~336g total liquid cap via FIBER_ABSORPTION × weightCategoryToGrams), naive time-to-saturation at typical skiing sweat rates is 2-4 hours, not 15-20. Enumerated 5 candidate causes (microclimate-VP, perceived weights scaling, saturation cascade midrange, cold penalty scaling, combination). **S27 root cause identification:** NONE of the 5 candidates. Direct-probe of `iterativeTSkin` (ae6ed6c) confirmed thermal solver correct — given plausible inputs produces E_req=558W uncompensable, sweatGhr=827 for MET 8 skiing. Env-guarded per-cycle trace (6984c77) revealed engine sees MET=5 for all 36 cycles at 10 min/cycle, producing 76 mL/hr fluid loss — internally consistent with profile as written but fundamentally missing PHY-031 component cycle physics. **Root cause:** PHY-031 component cycle model (crowd tiers, holiday windows, line+transition+rest times) ratified in LC5 Mar 17 was only 12.5% ported to LC6 (mogul runMin 10→7 correction only). Engine cycle count ~2× too high (36 vs spec-predicted ~18) and per-cycle lift-phase exposure ~2× too short, compounding to ~4× underestimation of cumulative cold-wet-fabric exposure. Matches user's lived experience. **Remediation:** PHY-031 port completion (not new spec authoring, not physics fix). S28 = author LC6 PHY-031 spec doc (resolves DRIFT-3). S29 = execute port implementation. Spec-lock tests at `packages/engine/tests/spec-locks/phy-031-component-cycle.test.ts` have 25 `.todo` placeholders that convert to `.it` as port lands. PHY-MICROCLIMATE-VP and PHY-SHELL-GATE remain correct physics but NOT primary lever for this issue — they address saturation-regime physics that the engine never reaches under current profile. **References:** LC6_Planning/audits/S27_PHY-031_PORT_STATUS_AUDIT.md (242 lines, full audit); LC6_Planning/LC6_Spec_Registry.md (DRIFT-3 entry); S27 chain commits ae6ed6c through 2e33590. |
+
+### B.18 Session 27 retention-infrastructure findings
+
+Items surfaced during S27 while building the LC6 Spec Registry and PHY-031 port audit. Three drift items (filename/reality mismatches) plus two related code-hygiene concerns. All logged with explicit owners and remediation paths.
+
+| ID | Priority | Status | Notes |
+|---|---|---|---|
+| S27-DRIFT-3-PHY-031-NO-SPEC | HIGH | Open — S28 target | PHY-031 ratified in LC5 Mar 17 but no LC6 spec file exists. Implementation 12.5% complete (only mogul runMin 10→7 correction). cycleOverride scaffolding present at calc_intermittent_moisture.ts:247,297,500-504 but bridge null-plugged at evaluate.ts:430 with comment "No cycle override in 10a". Root cause of S26-SYSTEMATIC-MR-UNDERESTIMATION. Remediation per audit Option A: author LC6 PHY-031 spec doc at LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md sourced from LC5 archive + S27 audit findings. Resolves 5 deferred open questions (Thanksgiving treatment, user override selector, resort-specific multiplier, powder day surge, climate normals default). S28 target; S29 executes implementation with spec-lock Tier B tests as validation checkpoints. Reference: LC6_Planning/audits/S27_PHY-031_PORT_STATUS_AUDIT.md. |
+| S27-DUAL-BREATHABILITY-MAPPING | MEDIUM | Open | Two `breathabilityToIm` functions with identical name but different formulas: packages/engine/src/ensemble/gear_layers.ts:127 (piecewise) vs packages/engine/src/gear/adapter.ts:105 (linear). Indicates either drift between call sites or a deliberate branching that should be explicit. Risk: im_ensemble values may differ depending on code path, potentially affecting ensemble scoring. Investigation: determine which call sites use which variant, whether outputs agree at common input range, whether consolidation is safe. Surfaced during S27 PHY-031 audit (§8.1) but independent of PHY-031 port. |
+| S27-DRIFT-1-PERCEIVED-MR-FILENAME | LOW | Open | Filename mismatch: LC6_Planning/specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v1_RATIFIED.md says "RATIFIED" but the implementation was reverted S17 per LC6_Planning/LC6_REDESIGN_v1_Closure.md. Engine runs pre-REDESIGN code (packages/engine/src/moisture/perceived_mr.ts). Remediation: `git mv` to `PHY-PERCEIVED-MR-REDESIGN_Spec_v1_REVERTED.md`. 5-minute cleanup. Documentation hygiene only — no user impact. Reference: LC6_Planning/LC6_Spec_Registry.md DRIFT-1. |
+| S27-DRIFT-2-HUMID-V1-FILENAME | LOW | Open | Filename mismatch: LC6_Planning/specs/PHY-HUMID-01_Spec_v1_RATIFIED.md says "RATIFIED" but v2 supersedes it (773f995 / S12). v2 file's own body documents the supersession. Remediation: `git mv` to `PHY-HUMID-01_Spec_v1_SUPERSEDED.md`. 5-minute cleanup. Documentation hygiene only. Reference: LC6_Planning/LC6_Spec_Registry.md DRIFT-2. |
+| S27-TSC-ERRORS-BASELINE | LOW | Open | 8 pre-existing `tsc --noEmit` errors in test files (tests/evaluate/cm_budget.test.ts — EngineGearItem property mismatches; tests/scheduling/precognitive_cm.test.ts — TrajectoryPoint type mismatch). Errors persist through all recent commits. vitest passes 645/645 because it uses esbuild transpile-only mode, not strict tsc. Not a blocker for anything currently but represents type-drift debt. Investigate root cause, decide whether to fix tests or update types. Surfaced during S27 PHY-031 audit (§8.2) but independent of PHY-031. |
 
 ## Section C: Constants Audit — Calibrations vs Fudges
 
