@@ -32,7 +32,57 @@
 <!-- S26-RECONCILIATION-APPLIED -->
 <!-- S27-APPLIED -->
 <!-- S27-RECONCILIATION-APPLIED -->
-## Status as of Session 27 (Root cause identified as PHY-031 unported; retention infrastructure established)
+<!-- S28-APPLIED -->
+<!-- S28-RECONCILIATION-APPLIED -->
+## Status as of Session 28 (PHY-031 spec ratified; S27-DRIFT-3 closed; S29 port unblocked)
+
+**Branch:** `session-13-phy-humid-v2` (pushed to origin)
+**Working tree:** clean
+**Working directory:** `~/Desktop/LC6-local`
+**Head:** {S28_COMMIT_SHA} (S28 close — spec + tracker + registry)
+
+**Session 28 narrative arc:**
+S28 opened per kickoff as Chat-led spec authoring session. Sole deliverable: `LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md`. Source material: LC5 archive (PHY-031 original ratification Mar 17, 2026) + S27 audit + user's S27 ski-speed research (Stepan 2023, ScienceDirect corpus). Six open questions deferred from LC5 ratification resolved with user input concrete-to-abstract (Q6 → Q5 → Q1 → Q4 → Q3 → Q2).
+
+Session surfaced two recurring failure modes the kickoff had explicitly warned about: (a) Chat re-deriving from first principles work that was already ratified in LC5 archives, requiring user intervention to redirect back to "read LC5, don't reinvent"; (b) Chat adopting off-hand user comments as new rules instead of checking whether the comment matched ratified work. Both patterns caught and corrected mid-session. User named the meta-principle: "do not let me override work already done."
+
+**S28 outputs:**
+
+- **Spec file (`LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md`):** 616 lines, 18 sections. Ports LC5 PHY-030/031 ratified values verbatim (component formula, 6-tier crowd calendar, per-terrain table, seasonal fallthrough, component constants). Adds S28-ratified content: Thanksgiving holiday window (#10), powder-day auto-detection via OpenSnow → OnTheSnow → NWS, powder tier-bump table. Cardinal Rule §9 transcribes cycle-averaging prohibition from kickoff §6. §10 declares "no-date" path not-applicable per ratified `smartStartH`. §11 defers resort multiplier to v2, captures Alpine Replay framework. §13 verification criteria for S29. §14 Model Refinement future-work register. §15 audit trail of all 6 open-question resolutions.
+
+- **Six open questions — resolutions documented in spec §15:**
+  - Q6 (run duration revision): No revision. LC5 table stands. Stepan research applies to 2,000 vft scenarios; LC5 values correct for 1,000 vft reference.
+  - Q5 (climate normals default): Not applicable. Date always supplied via ratified `smartStartH`.
+  - Q1 (Thanksgiving): Window #10 added — Wed 3 / Thu 2 / Fri 4 / Sat 4 / Sun 3.
+  - Q4 (powder surge): Auto-detected via OpenSnow → OnTheSnow → NWS. Tier bump table ratified. `GAP-PHY-031-POWDER-THRESHOLD` flagged for S29.
+  - Q3 (resort multiplier): Defer to v2. Alpine Replay 5-tier framework captured for future.
+  - Q2 (user crowd override): Defer to v2 or never. User-stated principle: "minimize user input" — system infers from ambient signals.
+
+**Zero engine-physics changes this session.** Pure spec authoring + tracker/registry updates. No Cardinal Rule violations.
+
+**Drift items status update:**
+- `S27-DRIFT-3-PHY-031-NO-SPEC` HIGH — **CLOSED** (spec ratified, file exists)
+- `S27-DRIFT-1-PERCEIVED-MR-FILENAME` LOW — still open, S30+
+- `S27-DRIFT-2-HUMID-V1-FILENAME` LOW — still open, S30+
+- `S27-DUAL-BREATHABILITY-MAPPING` MEDIUM — still open, S30+
+- `S27-TSC-ERRORS-BASELINE` LOW — still open, S30+
+
+**New tracker items from S28:**
+- `GAP-PHY-031-POWDER-THRESHOLD` — Quantitative snowfall threshold for powder-day classification when falling back from OpenSnow to NWS. Recommendation in spec §7.4: adopt OpenSnow proprietary classifier when that source is active. Define NWS threshold only when needed. Owner: S29 or later integration session.
+- `S28-GOV-MODEL-REFINEMENT-PROCESS` MEDIUM — User flagged in S28 that the Model Refinement cycle itself is undefined. When do deferred items graduate to v2? What triggers a refinement pass? Who ratifies? Needs its own session to define.
+
+**Forward plan (unchanged from S27 forward plan, S28 deliverable executed):**
+
+- **S29 target:** Execute PHY-031 port per S27 audit Option A. Build `getCrowdFactor(dateStr, powderFlag)`. Define constants `DEFAULT_LIFT_MIN=7`, `TRANSITION_MIN=3`, `REST_FRACTION=0.20`. Wire `evaluate.ts:430` to compute cycleOverride from date + crowd tier + (S29 integration choice for powder). Add ski-history parameter + back-calc path (Phase A manual entry). Convert spec-lock `.todo` → `.it` as each component lands. Bind 25 `.todo` items to spec sections during port work. S26-SYSTEMATIC-MR-UNDERESTIMATION closes when port complete and verified against S-001 Breck diagnostic (cycle count drops from 36 to spec-predicted ~18 at Tier 2).
+- **S30+ targets:**
+  - Tackle DRIFT-1 and DRIFT-2 (LOW, 10 min cleanup each)
+  - Resume PHY-SHELL-GATE v1 and PHY-MICROCLIMATE-VP v1 ratification path
+  - Address S27-DUAL-BREATHABILITY-MAPPING MEDIUM
+  - Address S28-GOV-MODEL-REFINEMENT-PROCESS MEDIUM (when user ready)
+
+**Net tracker change S28:** +2 new items (`GAP-PHY-031-POWDER-THRESHOLD`, `S28-GOV-MODEL-REFINEMENT-PROCESS`). 1 item CLOSED (`S27-DRIFT-3-PHY-031-NO-SPEC`). Forward plan materially unchanged — S28 deliverable executed per S27 plan.
+
+### Historical record — Session 27 (Root cause identified as PHY-031 unported; retention infrastructure established)
 
 **Branch:** `session-13-phy-humid-v2` (pushed to origin)
 **Working tree:** clean
@@ -330,7 +380,7 @@ Session 15 halted at spec §7 gate while implementing REDESIGN v1. Retained here
 |---|---|---|---|---|---|
 | PHY-GEAR-01 | v2 | RATIFIED + IMPLEMENTED | S11 | specs/PHY-GEAR-01_Spec_v2_RATIFIED.md | 1,627-product catalog live |
 | PHY-HUMID-01 | v2 | RATIFIED, PARTIALLY IMPLEMENTED | S12 | specs/PHY-HUMID-01_Spec_v2_RATIFIED.md | §5.1 items 1+5 shipped (helpers S13 e9d56b5; Category C wired S22 51885be). Items 2-4 pending §10 hand-compute gate. Item 6 (H3 verification) outstanding. |
-| PHY-031 | LC5-v1 (no LC6 file yet) | NOT_PORTED (~12.5%; cycleOverride null-plugged) | S17 scaffold / S27 discovery | LC6_Planning/audits/S27_PHY-031_PORT_STATUS_AUDIT.md | Component cycle model ratified LC5 Mar 17. Crowd tiers (6), holiday windows (9), component cycle formula, TRANSITION_MIN, REST_FRACTION, ski history integration — none ported to LC6. Only mogul runMin 10→7 correction made it. Scaffolding present at calc_intermittent_moisture.ts:247,297,500-504 but bridge null-plugged at evaluate.ts:430. Root cause of S26-SYSTEMATIC-MR-UNDERESTIMATION. Remediation: S28 = author LC6 spec doc; S29 = implement port. Spec-lock tests at packages/engine/tests/spec-locks/phy-031-component-cycle.test.ts (25 .todo placeholders convert to .it as port lands). Tracker refs: B.18 S27-DRIFT-3-PHY-031-NO-SPEC, LC6_Spec_Registry.md DRIFT-3. |
+| PHY-031 | LC6-v1 (LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md) | RATIFIED (spec) / NOT_IMPLEMENTED (engine, S29 target) | S28 spec ratification ({S28_COMMIT_SHA}) | LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md; LC6_Planning/audits/S27_PHY-031_PORT_STATUS_AUDIT.md | Component cycle model ratified LC6 S28 (April 21, 2026). 616-line spec ports LC5 PHY-030/031 ratified values verbatim (component formula, 6-tier crowd calendar, per-terrain runMin table, seasonal fallthrough, DEFAULT_LIFT_MIN=7, TRANSITION_MIN=3, REST_FRACTION=0.20). Adds S28-ratified content: Thanksgiving holiday window (#10), powder-day auto-detection (OpenSnow → OnTheSnow → NWS), powder tier-bump table. Engine implementation remains 12.5% complete — scaffolding present at calc_intermittent_moisture.ts:247,297,500-504, bridge null-plugged at evaluate.ts:430. Root cause of S26-SYSTEMATIC-MR-UNDERESTIMATION. S29 target: execute Option A port per S27 audit §6. Spec-lock tests at packages/engine/tests/spec-locks/phy-031-component-cycle.test.ts (25 .todo placeholders convert to .it as port lands; S29 binds .todo items to spec sections during port). Tracker refs: B.18 S27-DRIFT-3-PHY-031-NO-SPEC **CLOSED S28**, LC6_Spec_Registry.md DRIFT-3 **CLOSED S28**. |
 | PHY-PERCEIVED-MR-REDESIGN | v1 | **SUPERSEDED BY REVERSION (S17)** | S14 | specs/PHY-PERCEIVED-MR-REDESIGN_Spec_v1_RATIFIED.md | Reverted Session 17. Retained output layer (7.2 + cascade + 40mL threshold) reclassified as calibration. See `LC6_Planning/LC6_REDESIGN_v1_Closure.md`. |
 
 ---
