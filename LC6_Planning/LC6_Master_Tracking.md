@@ -28,7 +28,46 @@
 <!-- S24-RECONCILIATION-APPLIED -->
 <!-- S25-APPLIED -->
 <!-- S25-RECONCILIATION-APPLIED -->
-## Status as of Session 25 (PHY-MICROCLIMATE-VP unified spec drafted; supersedes two tracker items)
+<!-- S26-APPLIED -->
+<!-- S26-RECONCILIATION-APPLIED -->
+## Status as of Session 26 (Diagnostic reveals sweat rate underestimation; spec ratification deferred pending investigation)
+
+**Branch:** `session-13-phy-humid-v2` (pushed to origin)
+**Working tree:** clean
+**Working directory:** `~/Desktop/LC6-local`
+**Test count:** 645/645 passing (1 new diagnostic test added, no engine changes)
+**Head:** c423659 (S26: S-001 diagnostic test) → cd27ff7 (S26: S-001 scenario v1) → 4f9d32f (S26: log SYSTEMATIC-MR-UNDERESTIMATION) → 259e74e (S25 close)
+
+**Session 26 target reframing:**
+- Original target per S25 forward plan: joint ratification of PHY-SHELL-GATE and PHY-MICROCLIMATE-VP drafts.
+- S26 first pivoted to reference scenario population (§10 gate requirement), starting with S-001 Breck cold-dry skiing.
+- Authored qualitative S-001 v1 with real ensemble (Smartwool Merino 250 / Patagonia R1 Air / Patagonia Nano Puff / Arc'teryx Beta LT), user requested upgrade to numeric values via engine diagnostic.
+- Diagnostic revealed ~76 mL/hr effective sweat rate for alpine skiing at MET 6-7, 16°F / 40% RH. Physiologically should be 400-800 mL/hr. **Engine underestimates sweat production by 5-10x.**
+- Pivoted from ratification path to systematic-MR-underestimation investigation.
+
+**Session 26 outcome:**
+- **Logged `S26-SYSTEMATIC-MR-UNDERESTIMATION` as HIGH** (commit `4f9d32f`). Captures user's weeks-long observation that perceived MR readings feel consistently too low. Enumerates 5 possible root cause candidates (microclimate-VP, perceived weights scaling, saturation cascade midrange, cold penalty scaling, combination).
+- **Authored S-001 v1 qualitative reference scenario** (commit `cd27ff7`). 421 lines. Real ensemble from LC5 catalog, physics reasoning throughout, directional MR shift predictions. Honest caveat that numeric values are estimates pending diagnostic-based upgrade.
+- **Authored S-001 diagnostic test** (commit `c423659`). 199 lines. Captures per-cycle engine state for the Breck scenario. Uses real ensemble construction with precomputed weightG from memory midpoint table, breathabilityToIm piecewise function applied correctly, FIBER_ABSORPTION cap math.
+
+**Key finding that reshapes investigation:**
+Engine produces sessionMR=2.30 over 6 hours of alpine skiing with peakSaturationFrac=22.1%. Layers fill uniformly to ~28% via Washburn equilibration. totalFluidLoss=456mL over 6 hours = 76 mL/hr — essentially insensible-perspiration baseline, not high-exertion sweating.
+
+**Implication for PHY-SHELL-GATE and PHY-MICROCLIMATE-VP:**
+Both specs address physics at or near terminal saturation. Engine does not reach saturation in normal alpine skiing. Saturation-regime physics corrections remain correct but may not be the primary lever for user-reported MR underestimation. The upstream sweat-rate bug prevents the engine from entering the regime where these specs take effect.
+
+**Consequence for forward plan:**
+- Spec ratification DEFERRED pending sweat-rate investigation
+- New investigation scope: why does `iterativeTSkin` + `computeSweatRate` produce such low sweat in cold-exposure high-exertion scenarios?
+
+**Net tracker change S26:** +1 HIGH (`S26-SYSTEMATIC-MR-UNDERESTIMATION`). Strategic pivot: primary investigation target shifted from microclimate/shell physics to sweat-rate physics.
+
+**Forward plan:**
+- **S27 target:** Sweat-rate investigation. Write direct-probe diagnostic (`s001_iterative_tskin_probe.test.ts`) calling `iterativeTSkin` with engine-matched cycle-0 inputs. Read `eReq` and `eActual` from result object. Compute external sweat rate via `computeSweatRate(eReq, eMax)`. Identify whether bug is in thermal solver inputs, solver internals, or post-solver pipeline.
+- **S28 target:** Based on S27 findings, either (a) targeted tactical fix if bug is outside thermal engine, (b) new spec draft if bug requires solver modification (Cardinal Rule #8 implications), or (c) per-cycle trace escalation if cycle-0 probe shows expected values.
+- **S29+ target:** Return to PHY-SHELL-GATE and PHY-MICROCLIMATE-VP ratification once sweat-rate situation is understood. These specs may still be worth shipping even if not primary lever.
+
+### Historical record — Session 25 (PHY-MICROCLIMATE-VP unified spec drafted; supersedes two tracker items)
 
 **Branch:** `session-13-phy-humid-v2` (pushed to origin)
 **Working tree:** clean
