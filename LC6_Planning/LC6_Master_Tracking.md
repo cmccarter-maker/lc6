@@ -34,6 +34,64 @@
 <!-- S27-RECONCILIATION-APPLIED -->
 <!-- S28-APPLIED -->
 <!-- S28-RECONCILIATION-APPLIED -->
+<!-- S29-APPLIED -->
+<!-- S29-RECONCILIATION-APPLIED -->
+## Status as of Session 29 (PHY-031 port landed; cyclemin-physics gap discovered; S-001 regression still open)
+
+**Branch:** `session-13-phy-humid-v2` (2 commits ahead of origin, unpushed pending cyclemin reconciliation spec)
+**Working tree:** clean after S29 close
+**Working directory:** `~/Desktop/LC6-local`
+**Head:** 7289e8b (S29 close — PHY-031 port commit, matrix test file discarded)
+
+**Session 29 narrative arc:**
+S29 executed the PHY-031 port per spec §13 verification criteria and S28 kickoff scope. Seven patches landed clean, Cardinal Rule #8 honored (calcIntermittentMoisture untouched). Spec-lock tests converted from 25 `test.todo` to real assertions; 31/31 green. Session ran long due to mid-session discovery that `ActivitySpec.date_iso` plumbing didn't exist in either LC6 or LC5 — required schema extension (patches 3–4, 20 fixture sites), not in original kickoff scope.
+
+Patch 7 redirected from kickoff's proposed path (modify calcIntermittentMoisture signature — Cardinal Rule #8 touch, hand-comp trace required) to Option A (plumb ski_history through evaluate.ts → computeResortCycleOverride, zero engine touch). Result: S29 closed with zero thermal-engine modification, matching LC6's hardest-won rule.
+
+4-scenario verification matrix authored as `s29_matrix.test.ts`, run, revealed 3/4 scenarios out of expected range: S1 MR dropped (pre-port 2.30 → post-port 1.50), S2 LC5 parity miss (expected 6.2, observed 3.90), S3 at boundary. Per OQ-S29-6 resolution, session halted and investigated rather than adjusting ranges.
+
+Root cause diagnosed: **spec-implementation gap in cycleMin consumption.** Spec §2.1 defines cycleMin as full wall-clock cycle time (16.25 min Ghost Town groomers to 50 min Mayhem trees — a 3× spread by terrain + tier + powder). Engine phase loop simulates only run+lift (~10 min). Override supplies totalCycles to engine; engine honors count but not duration. Up to 80% of session wall-clock time unsimulated. User's longstanding field observation ("no way you're getting 40-50K feet off 36 runs") confirmed by diagnostic — the pre-port 36-cycle default was physically implausible but produced "looks-fine" aggregate because it happened to fill the session with 10-min cycles.
+
+Matrix test file deleted (not committed) to prevent "loosen ranges until green" temptation in future sessions.
+
+**S29 outputs (committed):**
+
+- **Commit 435e321:** `LC6_Planning/session_kickoffs/S29_kickoff.md` + `SessionA_kickoff.md`
+- **Commit 7289e8b:** PHY-031 port infrastructure (7 patches)
+  - `packages/engine/src/activities/phy031_constants.ts` (new)
+  - `packages/engine/src/activities/crowd_factor.ts` (new; getCrowdFactor + computeCycle)
+  - `packages/engine/src/types.ts` (ActivitySpec.date_iso required; UserBiometrics.ski_history optional)
+  - `packages/engine/src/validate.ts` (ISO-8601 + ski_history format validation)
+  - `packages/engine/src/evaluate.ts` (computeResortCycleOverride bridge; null-plug closed)
+  - `packages/engine/tests/spec-locks/phy-031-component-cycle.test.ts` (25 `.todo` → real tests; 31/31 green)
+  - 20 fixture sites updated across 12 test files to include `date_iso`
+
+**S29 did NOT close:**
+
+- `S26-SYSTEMATIC-MR-UNDERESTIMATION` — S-001 Breck diagnostic did NOT regress-close; MR moved in wrong direction post-port, indicating physics gap not symptom fix.
+
+**Drift items status update:**
+- `S27-DRIFT-3-PHY-031-NO-SPEC` — closed S28, engine port landed S29 but physics-incomplete
+- `S27-DRIFT-1-PERCEIVED-MR-FILENAME` LOW — still open
+- `S27-DRIFT-2-HUMID-V1-FILENAME` LOW — still open
+- `S27-DUAL-BREATHABILITY-MAPPING` MEDIUM — still open
+- `S27-TSC-ERRORS-BASELINE` LOW — 8 errors, held steady through S29 (7 cm_budget product_name + 1 precognitive_cm TrajectoryPoint)
+
+**NEW tracker items from S29:**
+
+- **`S29-PHY-031-CYCLEMIN-PHYSICS-GAP` HIGH** — Engine phase loop (run+lift ~10 min) does not consume spec §2.1 cycleMin (16.25–50 min, dynamic per terrain+tier+powder). Up to 80% of session wall-clock unsimulated when cycleOverride is supplied. Blocks `S26-SYSTEMATIC-MR-UNDERESTIMATION` closure. Requires new draft spec (`PHY-031-CYCLEMIN-RECONCILIATION`) specifying phase decomposition rules, per-phase physics model (line/transition/rest), session-level rest handling, and ski-history override decomposition. Cardinal Rule #8 exposure: implementation will touch engine phase-loop semantics — hand-computed trace required pre-patch.
+
+- **`S29-MATRIX-PENDING` MEDIUM** — 4-scenario matrix test file drafted during S29 but deleted pre-commit. Scenarios: S1 Breck groomers 16°F Tue, S2 Breck moguls 37°F Tue (LC5 parity 6.2), S3 Tahoe bowls 28°F 70%RH powder snowboard, S4 Breck groomers Thanksgiving Fri. Re-author post-reconciliation with verified fixture ensemble (current fixture was contrived — used hand-picked CLO/im rather than gear-DB products matching LC5 Mar 24 baseline). `peak_MR` vs `sessionMR` metric read also needs verification (test may have read instantaneous-peak where LC5 baseline was session-cumulative).
+
+**`GAP-PHY-031-POWDER-THRESHOLD`** — unchanged. Powder signal-source wiring (OpenSnow/OnTheSnow/NWS) remains future scope. S29 passes `powderFlag: false` at bridge call site.
+
+**Forward plan:**
+
+- **Immediate (pre-push):** Draft `PHY-031-CYCLEMIN-RECONCILIATION_Spec_v1_DRAFT.md` in a fresh spec-authoring session. Same pattern as S28 PHY-031 authoring: concrete-to-abstract open question resolution, hand-computed trace vectors, verification criteria for implementation session.
+- **Next implementation session (S30+ after reconciliation ratified):** Execute reconciliation port. Cardinal Rule #8 active. Hand-comp trace gate. Re-author 4-scenario matrix with proper fixture + metric read. Close S-001 regression. Flip PHY-031 registry row PARTIAL → ACTIVE. Push all accumulated commits to origin.
+- **DO NOT PUSH `session-13-phy-humid-v2` until reconciliation ratifies.** S29 commits stay local to prevent premature "shipped" framing while S-001 regression open.
+- **Preserve for later sessions (unchanged):** DRIFT-1, DRIFT-2, PHY-SHELL-GATE v1 ratification, PHY-MICROCLIMATE-VP v1 ratification, S27-DUAL-BREATHABILITY-MAPPING, S28-GOV-MODEL-REFINEMENT-PROCESS.
+
 ## Status as of Session 28 (PHY-031 spec ratified; S27-DRIFT-3 closed; S29 port unblocked)
 
 **Branch:** `session-13-phy-humid-v2` (pushed to origin)
