@@ -96,6 +96,7 @@ function buildScenarioInput(s: Scenario, userCandidateIdx: number): EngineInput 
     activity: {
       activity_id: s.activity,
       duration_hr: s.durationHr,
+      date_iso: "2026-02-03",
       snow_terrain: (s.activity === 'skiing' || s.activity === 'snowboarding') ? 'groomers' : undefined,
       segments: [{
         segment_id: 'seg-1',

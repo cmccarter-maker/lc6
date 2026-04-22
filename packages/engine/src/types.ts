@@ -506,6 +506,14 @@ export interface ActivitySpec {
   activity_id: string;
   duration_hr: number;
   segments: SegmentSpec[];
+  /**
+   * ISO-8601 date of the activity (YYYY-MM-DD).
+   * Required — per PHY-031 §10.3, no default path exists. Upstream `smartStartH`
+   * protocol guarantees a date is always supplied; this field makes that invariant
+   * explicit in the type system. Consumed by PHY-031 getCrowdFactor (crowd tier
+   * resolution), but semantically applies to any activity with date-dependent context.
+   */
+  date_iso: string;
   snow_terrain?: string;
   bc_vertical_gain_ft?: number;
   fish_wading?: boolean;
@@ -545,6 +553,16 @@ export interface UserBiometrics {
   vo2max?: number;
   fitness_profile?: FitnessProfile;
   pace_mul?: number;
+  /**
+   * Optional ski history for personal calibration (PHY-031 §8.2).
+   * When present, overrides the crowd-calendar cycle count entirely.
+   * Calendar path is used when absent (§8.4 cold-start behavior).
+   */
+  ski_history?: {
+    runs_per_day: number;
+    hours_per_day: number;
+    riding_style?: "cruiser" | "mixed" | "charger";
+  };
 }
 
 export interface FitnessProfile {

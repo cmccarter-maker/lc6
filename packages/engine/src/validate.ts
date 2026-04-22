@@ -29,6 +29,33 @@ export function validate(input: EngineInput): void {
   if (typeof input.activity.duration_hr !== 'number' || input.activity.duration_hr <= 0) {
     throw new ValidationError('activity.duration_hr must be a positive number');
   }
+  // date_iso required per PHY-031 §10.3 — no default path exists.
+  // Accepts YYYY-MM-DD or full ISO-8601 timestamps.
+  if (typeof input.activity.date_iso !== 'string' || !input.activity.date_iso) {
+    throw new ValidationError('activity.date_iso is required (ISO-8601, e.g. "2026-02-03")');
+  }
+  {
+    const m = input.activity.date_iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) {
+      throw new ValidationError(
+        `activity.date_iso must be ISO-8601 (YYYY-MM-DD). Got: "${input.activity.date_iso}"`
+      );
+    }
+    const y = parseInt(m[1]!, 10);
+    const mo = parseInt(m[2]!, 10);
+    const d = parseInt(m[3]!, 10);
+    const probe = new Date(Date.UTC(y, mo - 1, d));
+    if (
+      isNaN(probe.getTime()) ||
+      probe.getUTCFullYear() !== y ||
+      probe.getUTCMonth() !== mo - 1 ||
+      probe.getUTCDate() !== d
+    ) {
+      throw new ValidationError(
+        `activity.date_iso is not a valid calendar date. Got: "${input.activity.date_iso}"`
+      );
+    }
+  }
   if (!input.activity.segments || input.activity.segments.length === 0) {
     throw new ValidationError('activity.segments must have at least one segment');
   }
@@ -62,6 +89,22 @@ export function validate(input: EngineInput): void {
   }
   if (typeof input.biometrics.weight_lb !== 'number' || input.biometrics.weight_lb <= 0) {
     throw new ValidationError('biometrics.weight_lb must be a positive number');
+  }
+  // Optional ski history — per PHY-031 §8.2. Validates format only when present.
+  if (input.biometrics.ski_history) {
+    const h = input.biometrics.ski_history;
+    if (typeof h.runs_per_day !== 'number' || h.runs_per_day <= 0) {
+      throw new ValidationError('biometrics.ski_history.runs_per_day must be a positive number');
+    }
+    if (typeof h.hours_per_day !== 'number' || h.hours_per_day <= 0) {
+      throw new ValidationError('biometrics.ski_history.hours_per_day must be a positive number');
+    }
+    if (h.riding_style !== undefined &&
+        h.riding_style !== 'cruiser' &&
+        h.riding_style !== 'mixed' &&
+        h.riding_style !== 'charger') {
+      throw new ValidationError('biometrics.ski_history.riding_style must be "cruiser", "mixed", or "charger"');
+    }
   }
 
   // ── User ensemble ─────────────────────────────────────

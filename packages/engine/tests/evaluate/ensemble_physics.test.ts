@@ -67,6 +67,7 @@ function makeInput(
     activity: {
       activity_id: activity,
       duration_hr: durationHrs,
+      date_iso: "2026-02-03",
       snow_terrain: activity === 'snowboarding' || activity === 'skiing' ? 'groomers' : undefined,
       segments: [{
         segment_id: 'seg-1',

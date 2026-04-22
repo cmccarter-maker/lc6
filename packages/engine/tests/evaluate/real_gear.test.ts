@@ -157,6 +157,7 @@ describe('Real gear → enumerate → evaluate: full pipeline', () => {
       activity: {
         activity_id: 'skiing',
         duration_hr: 6,
+        date_iso: "2026-02-03",
         snow_terrain: 'groomers',
         segments: [{
           segment_id: 'breck',
@@ -196,6 +197,7 @@ describe('Real gear → enumerate → evaluate: full pipeline', () => {
       activity: {
         activity_id: 'skiing',
         duration_hr: 6,
+        date_iso: "2026-02-03",
         snow_terrain: 'groomers',
         segments: [{
           segment_id: 'breck',
@@ -236,6 +238,7 @@ describe('Real gear → enumerate → evaluate: full pipeline', () => {
       activity: {
         activity_id: 'skiing',
         duration_hr: 6,
+        date_iso: "2026-02-03",
         snow_terrain: 'groomers',
         segments: [{
           segment_id: 'breck',

@@ -48,6 +48,10 @@ import type { IntermittentMoistureResult } from './moisture/index.js';
 
 // IREQ — feasibility filter (Step 2)
 import { computeActivityIREQ, DLE_neu, DLE_min, m2KW_to_clo, IREQ_neu, IREQ_min } from './ireq/index.js';
+
+// PHY-031 — crowd-aware component cycle model (S29 port)
+import { getCrowdFactor, computeCycle } from './activities/crowd_factor.js';
+import type { SkiTerrain } from './activities/crowd_factor.js';
 import type { ActivityIREQOutput } from './ireq/index.js';
 
 // CDI v1.4 — stage detection (Step 3)
@@ -392,6 +396,48 @@ function computeIREQSummary(input: EngineInput): IREQSummary {
 
 
 // ============================================================================
+// PHY-031: Resort ski/snowboard cycle-override computation
+// ============================================================================
+
+/**
+ * Compute a cycleOverride for resort skiing/snowboarding.
+ * Returns null for non-resort-ski activities (hiking, backcountry, etc.)
+ * which preserves the default per-hour cycling logic in calcIntermittentMoisture.
+ *
+ * Per PHY-031 spec §2.1 (cycle formula), §4–§7 (crowd calendar + holidays +
+ * powder bump), and §10.3 (no default date path — date_iso is required).
+ *
+ * Powder signal wiring (OpenSnow/OnTheSnow/NWS) is future scope per spec §7.3;
+ * powderFlag=false here until that integration lands.
+ */
+function computeResortCycleOverride(input: EngineInput): { totalCycles: number; cycleMin: number } | null {
+  const actId = input.activity.activity_id;
+  if (actId !== 'skiing' && actId !== 'snowboarding') return null;
+
+  const terrain = input.activity.snow_terrain;
+  // Backcountry and any unset/non-lift terrain falls through to default logic.
+  // Only the 5 lift-served resort terrains from spec §3.1 apply.
+  const resortTerrains: SkiTerrain[] = ['groomers', 'moguls', 'trees', 'bowls', 'park'];
+  if (!terrain || !resortTerrains.includes(terrain as SkiTerrain)) return null;
+
+  // PHY-031 §8: if user has supplied ski history, override the calendar entirely.
+  // Spec §8.1: history replaces cycle COUNT; per-cycle physics untouched.
+  // Spec §8.4: calendar until history exists, then history. No blending.
+  const hist = input.biometrics.ski_history;
+  if (hist && hist.runs_per_day > 0 && hist.hours_per_day > 0) {
+    return {
+      totalCycles: hist.runs_per_day,
+      cycleMin: (hist.hours_per_day * 60) / hist.runs_per_day,
+    };
+  }
+
+  const crowdTier = getCrowdFactor(input.activity.date_iso, /* powderFlag */ false);
+  const seg = input.activity.segments[0]!;
+  return computeCycle(crowdTier, terrain as SkiTerrain, seg.duration_hr);
+}
+
+
+// ============================================================================
 // Steps 3-4: Single-ensemble evaluation
 // ============================================================================
 
@@ -405,6 +451,15 @@ function evaluateSingleEnsemble(
   // Multi-segment chaining is a Session 10b+ scope item.
   const seg = input.activity.segments[0]!;
   const w = seg.weather[0]!;
+
+  // ── PHY-031: resort ski/snowboard cycle override ──────
+  // For resort skiing/snowboarding with a lift-served terrain, compute a
+  // date-aware cycle count via the crowd calendar (spec §4–§7) and the
+  // component-cycle formula (spec §2.1). For all other activities
+  // (backcountry ski, hiking, etc.) cycleOverride remains null and
+  // calcIntermittentMoisture uses its default per-hour cycling logic.
+  // Powder signal wiring is future scope (spec §7.3); powderFlag=false for now.
+  const cycleOverride = computeResortCycleOverride(input);
 
   // ── Call calcIntermittentMoisture ──────────────────────
   // Map EngineInput → 27 positional parameters
@@ -427,7 +482,7 @@ function evaluateSingleEnsemble(
     /* kayakType */         input.activity.kayak_type ?? null,
     /* fitnessProfile */    mapFitnessProfile(input),
     /* effInt */            null,  // No effective intensity override
-    /* cycleOverride */     null,  // No cycle override in 10a
+    /* cycleOverride */     cycleOverride,
     /* shellWindRes */      input.shell_wind_resistance ?? null,
     /* ventEvents */        null,  // TODO-10b: map VentEvent[] to expected format
     /* initialTrapped */    null,  // No segment chaining in 10a

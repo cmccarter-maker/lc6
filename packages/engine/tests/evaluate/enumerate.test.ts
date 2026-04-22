@@ -165,6 +165,7 @@ describe('enumerate → evaluate integration', () => {
       activity: {
         activity_id: 'snowboarding',
         duration_hr: 6,
+        date_iso: "2026-02-03",
         snow_terrain: 'groomers',
         segments: [{
           segment_id: 'seg-1',
@@ -199,6 +200,7 @@ describe('enumerate → evaluate integration', () => {
       activity: {
         activity_id: 'skiing',
         duration_hr: 4,
+        date_iso: "2026-02-03",
         snow_terrain: 'groomers',
         segments: [{
           segment_id: 'seg-1',
@@ -241,6 +243,7 @@ describe('enumerate → evaluate integration', () => {
       activity: {
         activity_id: 'snowboarding',
         duration_hr: 6,
+        date_iso: "2026-02-03",
         snow_terrain: 'groomers',
         segments: [{
           segment_id: 'seg-1',

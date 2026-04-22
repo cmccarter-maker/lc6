@@ -85,6 +85,7 @@ function makeBaselineInput(
     activity: {
       activity_id: activity,
       duration_hr: durationHrs,
+      date_iso: "2026-02-03",
       segments: [{
         segment_id: 'seg-1',
         segment_label: `${activity} baseline`,

@@ -78,6 +78,7 @@ function buildInput(ensemble: GearEnsemble): EngineInput {
     activity: {
       activity_id: 'snowboarding',
       duration_hr: 6,
+      date_iso: "2026-02-03",
       snow_terrain: 'groomers',
       segments: [{
         segment_id: 'seg-1',

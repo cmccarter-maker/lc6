@@ -107,6 +107,7 @@ describe('DIAGNOSTIC — Human-readable recommendation output', () => {
       activity: {
         activity_id: 'skiing',
         duration_hr: 6,
+        date_iso: "2026-02-03",
         snow_terrain: 'groomers',
         segments: [{
           segment_id: 'breck',
@@ -250,6 +251,7 @@ describe('DIAGNOSTIC — Human-readable recommendation output', () => {
       activity: {
         activity_id: 'skiing',
         duration_hr: 4,
+        date_iso: "2026-02-03",
         snow_terrain: 'groomers',
         segments: [{
           segment_id: 'cold-day',

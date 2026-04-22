@@ -61,6 +61,7 @@ const SCENARIOS: Array<{
       activity: {
         activity_id: 'snowboarding',
         duration_hr: 6,
+        date_iso: "2026-02-03",
         snow_terrain: 'groomers',
         segments: [{
           segment_id: 'seg-1',
@@ -103,6 +104,7 @@ const SCENARIOS: Array<{
       activity: {
         activity_id: 'hiking',
         duration_hr: 4,
+        date_iso: "2026-02-03",
         segments: [{
           segment_id: 'seg-1',
           segment_label: 'Shoulder-season trail',
@@ -143,6 +145,7 @@ const SCENARIOS: Array<{
       activity: {
         activity_id: 'backpacking',
         duration_hr: 6,
+        date_iso: "2026-02-03",
         segments: [{
           segment_id: 'seg-1',
           segment_label: 'Sustained climb',
@@ -182,6 +185,7 @@ const SCENARIOS: Array<{
       activity: {
         activity_id: 'fishing',
         duration_hr: 4,
+        date_iso: "2026-02-03",
         segments: [{
           segment_id: 'seg-1',
           segment_label: 'Stationary fishing',
