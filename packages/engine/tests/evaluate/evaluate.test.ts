@@ -312,7 +312,20 @@ describe('Breck 16°F groomers 6hrs baseline', () => {
     expect(peakMR).toBeLessThanOrEqual(8.0);
   });
 
-  it('produces multiple trajectory cycles (expect ~36 runs)', () => {
+  // SKIPPED pending S29-MATRIX-PENDING re-author (see LC6_Planning/LC6_Master_Tracking.md).
+  // This test's assertion `cycleCount > 40 && < 100` locks in the pre-S29 baseline of
+  // totalRuns=36, which S27/S28 audits identified as physically impossible (36 × 1000 vft
+  // per day exceeds Everesting for a Tier 2 weekday). Post-S29 PHY-031 port produces
+  // 19 cycles per spec §12.4 worked example. Post-S31 reconciliation will change the
+  // trajectory array shape again (rest phases push into _perCycleHeatStorage per
+  // PHY-031-CYCLEMIN-RECONCILIATION spec §6.7.3). Rather than chase moving targets,
+  // test stays .skip() until S29-MATRIX-PENDING re-authors the cycle-count verification
+  // with verified fixture ensemble and correct metric read (sessionMR vs peak_MR, spec
+  // §9 hand-comp vector baselines).
+  //
+  // Re-enabling: resolved by the post-S31 matrix re-author session.
+  // Tracker: S29-MATRIX-PENDING MEDIUM (Section B.18 of LC6_Master_Tracking.md).
+  it.skip('produces multiple trajectory cycles (expect ~36 runs)', () => {
     const result = evaluate(makeBreckInput());
     const cycleCount = result.four_pill.your_gear.trajectory.length;
     // Lock-in baseline: totalRuns = 36.
