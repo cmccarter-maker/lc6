@@ -1,38 +1,51 @@
-# S31 Kickoff — Engine Implementation of PHY-031-CYCLEMIN-RECONCILIATION
+# S31 Kickoff — Engine Implementation of PHY-031-CYCLEMIN-RECONCILIATION v1.1
 
 **Session:** S31 (Code-led implementation session)
-**Authored by:** Chat
-**Date:** April 22–23, 2026
-**Parent spec:** `LC6_Planning/specs/PHY-031-CYCLEMIN-RECONCILIATION_Spec_v1_RATIFIED.md` (ratified S30, commit `28731fb`)
-**Branch:** `session-13-phy-humid-v2` (6 unpushed commits; continues local through S31)
-**Expected start HEAD:** `4e84e76` (S30 SHA-backfill commit)
+**Authored by:** Chat (original v1 on April 22–23, 2026; revised v1.1 during S31 pre-Phase-A, April 23, 2026)
+**Parent spec:** `LC6_Planning/specs/PHY-031-CYCLEMIN-RECONCILIATION_Spec_v1.1_RATIFIED.md` (spec revision ratified S31 pre-Phase-A)
+**Branch:** `session-13-phy-humid-v2` (unpushed; continues local through S31)
+**Expected start HEAD:** post-spec-v1.1-commit SHA (one commit past `617508a` baseline-capture commit)
 **Cardinal Rule #8 active.** Highest-risk engine patch since PHY-068.
+
+**Kickoff version history:**
+
+| Version | Date | Session phase | Changes |
+|---|---|---|---|
+| v1 | 2026-04-23 AM | S31 kickoff authoring | Original. Referenced spec v1 §9 MR targets (G1 2.6 / M2 4.3 / P5 5.5) and §11 S-001 closure criterion tied to M2 ∈ [4.0, 4.6]. |
+| v1.1 | 2026-04-23 PM | S31 pre-Phase-A, post probe | Revised after probe at HEAD `78cd56a` revealed spec v1 §9 synthesized targets non-credible. References spec v1.1 patch-correctness gates instead of MR-target gates. S-001 closure decoupled from S31 scope. Pre-Phase-A baselines captured: G1 2.50, M2 6.40, P5 4.10. |
 
 ---
 
 ## 0. Executive summary
 
-S31 ports the physics authorized by PHY-031-CYCLEMIN-RECONCILIATION v1 into the thermal engine. The port touches the single-source-of-truth phase loop in `calc_intermittent_moisture.ts`. Cardinal Rule #8 requires hand-computed verification vectors to exist before code is written — they do (spec §9, three vectors G1/M2/P5, extended in this kickoff §9 to full-primitive depth).
+S31 ports the physics authorized by PHY-031-CYCLEMIN-RECONCILIATION v1.1 into the thermal engine. The port touches the single-source-of-truth phase loop in `calc_intermittent_moisture.ts`. Cardinal Rule #8 requires patch-correctness verification to be designed before code is written — v1.1 §9 defines this as structural audit + non-ski bit-identical + trajectory shape + direction-of-change, rather than absolute MR targets.
 
-Implementation is **progressive**, not all-at-once: three phases (A/B/C), each gated on its own checkpoint vectors before advancing to the next. If phase A regresses, phase B never starts. If phase B regresses, phase C never starts. This prevents a "big-bang commit" where cascading bugs are hard to disentangle.
+Implementation is **progressive**, not all-at-once: three phases (A/B/C), each gated on its own checkpoints before advancing to the next. If Phase A regresses, Phase B never starts. If Phase B regresses, Phase C never starts.
 
-Session closes when:
-- All 8 gate criteria from spec §9.5 pass
-- `S26-SYSTEMATIC-MR-UNDERESTIMATION` formally closes per spec §11
-- `S29-PHY-031-CYCLEMIN-PHYSICS-GAP` flips HIGH-ratified-implementation-pending → CLOSED
+**Session closes when:**
+- All patch-correctness gates from spec v1.1 §9.4–§9.7 pass
+- `S29-PHY-031-CYCLEMIN-PHYSICS-GAP` flips HIGH → CLOSED
+- S-001 tracker annotation updated per spec v1.1 §11.2 (S-001 stays open)
 - Branch pushes to origin (first push since S28)
 
-Session does NOT close if:
-- Any of the 8 gate criteria fails → halt, escalate, do not tune constants to fit
-- Any non-ski activity regresses → halt, this means scope leakage out of ski path
+**Session does NOT close if:**
+- Any structural audit item fails → halt, read code, no constant tuning
+- Any non-ski activity regresses → halt, scope leakage
+- Any trajectory shape gate fails → halt, physics didn't land as designed
+- Any direction-of-change gate fails → halt, reconciliation affecting the wrong thing
 
-Expected duration: 4–8 hours of Code work depending on how cleanly the baseline captures go. Three natural break points between phases.
+**What S31 does NOT do:**
+- Close S-001 (`S26-SYSTEMATIC-MR-UNDERESTIMATION`) — stays open per spec v1.1 §11
+- Tune constants to hit specific MR values — explicitly prohibited
+- Wire the `ventEvents` TODO at `evaluate.ts:487` — out of scope
+
+Expected duration: 4–8 hours of Code work. Three natural break points between phases.
 
 ---
 
 ## 1. Pre-flight
 
-Before any engine touch. This sequence runs as the first Code action of S31 and verifies the starting state matches what this kickoff assumes.
+Before any engine touch. This sequence runs as the first Code action and verifies the starting state matches kickoff assumptions.
 
 ```bash
 cd ~/Desktop/LC6-local
@@ -44,184 +57,105 @@ if [[ "$CURRENT_BRANCH" != "session-13-phy-humid-v2" ]]; then
   exit 1
 fi
 
-# Working tree clean
-if [[ -n "$(git status --porcelain)" ]]; then
-  echo "HALT: working tree not clean"
-  git status --short
-  exit 1
-fi
+# Working tree status (untracked probe test and some tooling is expected)
+git status --short
 
-# Expected HEAD
-HEAD_SHA=$(git rev-parse --short HEAD)
-if [[ "$HEAD_SHA" != "4e84e76" ]]; then
-  echo "WARN: HEAD is $HEAD_SHA, expected 4e84e76 (S30 SHA-backfill commit)"
-  echo "Intermediate commits may be OK but please confirm with user before proceeding."
-  # In interactive context, prompt; in non-interactive, halt
-  exit 1
-fi
-
-# Unpushed count should be 6
-UNPUSHED=$(git log origin/session-13-phy-humid-v2..HEAD --oneline 2>/dev/null | wc -l | tr -d ' ')
-echo "Unpushed commits: $UNPUSHED (expected 6)"
-
-# Spec file present and ratified
-SPEC="LC6_Planning/specs/PHY-031-CYCLEMIN-RECONCILIATION_Spec_v1_RATIFIED.md"
+# Spec v1.1 present (authored by Chat, committed by Code during this session)
+SPEC="LC6_Planning/specs/PHY-031-CYCLEMIN-RECONCILIATION_Spec_v1.1_RATIFIED.md"
 if [[ ! -f "$SPEC" ]]; then
-  echo "HALT: ratified spec missing at $SPEC"
+  echo "HALT: spec v1.1 missing at $SPEC. Author + commit before Phase A."
   exit 1
 fi
 
-# Engine file present and unmodified
+# Engine file present and untouched (engine hash must still match pre-S31 baseline 4e84e76)
 ENGINE="packages/engine/src/moisture/calc_intermittent_moisture.ts"
 if [[ ! -f "$ENGINE" ]]; then
   echo "HALT: engine file missing at $ENGINE"
   exit 1
 fi
+ENGINE_AT_4E84E76=$(git show 4e84e76:"$ENGINE" | git hash-object --stdin)
+ENGINE_AT_HEAD=$(git hash-object "$ENGINE")
+if [[ "$ENGINE_AT_HEAD" != "$ENGINE_AT_4E84E76" ]]; then
+  echo "HALT: engine file hash differs from pre-S31 baseline"
+  exit 1
+fi
+echo "OK: engine file untouched since 4e84e76 baseline"
 
-# Existing test suite green at starting HEAD
-pnpm -F @layercraft/engine test 2>&1 | tail -20
-echo "Test suite ran — verify green before proceeding."
+# Pre-Phase-A baselines file exists (from §2 capture, commit 617508a)
+BASELINE="LC6_Planning/baselines/S31_PRE_PATCH_BASELINE.md"
+if [[ ! -f "$BASELINE" ]]; then
+  echo "HALT: pre-patch baseline doc missing at $BASELINE"
+  exit 1
+fi
+
+# Existing test suite green
+pnpm -F @lc6/engine test 2>&1 | tail -20
+echo "Verify: 676 passed, 1 skipped (S29-MATRIX-PENDING skip), 0 failures"
 
 echo ""
 echo "Pre-flight PASSED. Ready for Phase A."
 ```
 
-Phase gates (§3, §4, §5 below) run `pnpm -F @layercraft/engine test` after every patch. Test suite must stay green throughout except for expected regressions in `spec-locks/phy-031-cyclemin-reconciliation/` tests that S31 itself is authoring.
-
 ---
 
-## 2. Pre-patch baseline capture (all three vectors)
+## 2. Pre-Phase-A baseline capture — STATUS: ALREADY DONE
 
-**This is the first Code operation after pre-flight.** Captures current engine output at HEAD `4e84e76` under each vector's inputs. These baselines become the "pre-reconciliation" reference that spec §9.5 criterion #7 checks against.
+Completed at commit `617508a`. Real-DB optimal_gear ensemble baselines captured via probe test at `packages/engine/tests/probes/s31_ensemble_probe.test.ts`. Observed values:
 
-### 2.1 Baseline test file
+| Vector | optimal_gear sessionMR (HEAD `78cd56a`) | totalCLO | ensembleIm | Cycles |
+|---|---|---|---|---|
+| G1 | 2.50 | 4.42 | 0.254 | 31 |
+| M2 | 6.40 | 4.42 | 0.254 | 21 |
+| P5 | 4.10 | 4.42 | 0.254 | 12 |
 
-Create `packages/engine/tests/spec-locks/phy-031-cyclemin-reconciliation/baseline-capture.test.ts`:
+**These are spec v1.1 §9.3 reference values, not gate targets.** Phase A/B/C outputs compared against these values in §9.7 direction-of-change gate (relative magnitudes, not absolute equality).
 
-```typescript
-import { describe, it, expect } from 'vitest';
-import { calcIntermittentMoisture } from '../../../src/moisture/calc_intermittent_moisture';
-// ... (imports for profiles, gear, etc.)
-
-describe('PHY-031 cycleMin reconciliation — pre-patch baselines', () => {
-  // Vector G1: Ghost Town groomers, 16°F, Tuesday 2026-11-10
-  it('captures G1 baseline output (expected sessionMR ~1.5 pre-reconciliation)', () => {
-    const result = calcIntermittentMoisture({
-      // exact inputs per spec §9.2
-      tempF: 16,
-      humidity: 30,
-      windMph: 5,
-      precipProbability: 0,
-      elevFt: 9600,
-      dewPointC: -12,
-      // gear ensemble per spec §9.2
-      // biometrics per spec §9.2
-      // session config per spec §9.2
-      date: '2026-11-10',  // Tuesday
-      snowTerrain: 'groomers',
-      durationHrs: 8.5,
-      activity: 'snowboarding',
-      lunch: true,          // ignored by current engine — extension not wired yet
-      otherBreak: true,     // ignored by current engine
-    });
-
-    console.log('G1 BASELINE:');
-    console.log(`  sessionMR: ${result.sessionMR}`);
-    console.log(`  totalCycles: ${result.totalCycles}`);
-    console.log(`  totalFluidLoss: ${result._totalFluidLoss}`);
-    console.log(`  cumStorageWmin: ${result._cumStorageWmin}`);
-    console.log(`  perCycleMR: ${JSON.stringify(result._perCycleMR)}`);
-    console.log(`  final layer fills:`);
-    console.log(`    base: ${result._finalLayerFills?.base}`);
-    console.log(`    mid: ${result._finalLayerFills?.mid}`);
-    console.log(`    insulative: ${result._finalLayerFills?.insulative}`);
-    console.log(`    shell: ${result._finalLayerFills?.shell}`);
-
-    // No assertions — this test's purpose is to capture baseline
-    expect(result).toBeDefined();
-  });
-
-  // Vectors M2 and P5 identical pattern with spec §9.3 and §9.4 inputs
-});
-```
-
-Run it, copy outputs into a baseline markdown doc at:
-
-`LC6_Planning/audits/S31_PRE_PATCH_BASELINE.md`
-
-The baseline doc records observed output for each vector on commit `4e84e76`, formatted for direct comparison against spec §9's expected target values. This is what §9.5 criterion #7 checks.
-
-**Expected baselines per spec §9 (these are what the current engine should produce):**
-- G1: sessionMR ~1.5
-- M2: sessionMR ~1.5
-- P5: sessionMR ~2.5
-
-If baselines land more than ±0.3 away from these values, Chat escalates — it means the engine state at `4e84e76` has diverged from spec §9.5's assumption about pre-patch behavior.
-
-### 2.2 Non-ski baseline capture
-
-Separately, capture baselines for the 11 non-ski activities named in spec §9.5 criterion #8:
-
-```
-day_hike, backpacking, running, mountain_biking, trail_running,
-bouldering, camping, fishing, kayaking_lake, cycling_road_flat, snowshoeing
-```
-
-For each, run a simple smoke-test input through `calcIntermittentMoisture` (or its steady-state equivalent for non-cyclic activities), capture sessionMR + totalFluidLoss + final layer buffer fills. Record in the same `S31_PRE_PATCH_BASELINE.md` doc.
-
-After every phase (A, B, C) below, these baselines must reproduce bit-identically. If any diverges, scope has leaked and S31 halts.
+Non-ski baselines captured in the same commit — used by §9.5 bit-identical regression gate.
 
 ---
 
 ## 3. Phase A — `_cycleMinRaw` accumulator scoping
 
-**Scope:** change the time-window for moisture buffer advancement from `_runMin + _liftMin` to `_cycleMinRaw` per spec §4.6. Do **not** add new phases yet. Do **not** add rest handling yet. This is the smallest, most bounded change in the sequence.
+**Scope:** change the time-window for moisture buffer advancement from `_runMin + _liftMin` to `_cycleMinRaw` per spec v1.1 §4.6. Do **not** add new phases yet. Do **not** add rest handling yet.
 
-**Why first:** §4.6 is "processes always on" — a pure accounting correction, not a physics change. Isolating it lets us verify the Washburn / shell-drain / insensible / respiratory / ambient-vapor machinery still behaves correctly under a slightly longer time window, before the more invasive 4-phase structural change lands.
+**Why first:** §4.6 is "processes always on" — pure accounting correction, not physics change. Isolating it lets the Washburn / shell-drain / insensible / respiratory / ambient-vapor machinery verify under a slightly-longer time window before the 4-phase structural change lands.
 
 ### 3.1 What changes
 
 In `calc_intermittent_moisture.ts`:
 
-- Line 715: `const _cycleTotalMin = _runMin + _liftMin;` → `const _cycleTotalMin = _cycleMinRaw;` (where `_cycleMinRaw` is derived from cycle-specific components; for now, until Phase B introduces line + transition, `_cycleMinRaw === _runMin + _liftMin` so this is a no-op structurally — it names the concept)
-- Line 725: `const _insensibleG = 10 * (_runMin + _liftMin) / 60;` → `const _insensibleG = 10 * _cycleMinRaw / 60;`
-- Line 729: `_respRun.moistureGhr * (_runMin / 60)` → `_respRun.moistureGhr * (_cycleMinRaw / 60)` — the user breathes during lift too, not just run. This is the first behavior change.
-- Line 730: `const _cycleMin = _runMin + _liftMin;` → `const _cycleMin = _cycleMinRaw;`
-- Line 756: `_fabricInG = (_retainedCondensG + _excessHr * _netRetention) * (_runMin / 60) + _liftFabricG + _insensibleG;` — fabricInG scoping to respiratory-inclusive value
-- Lines 792, 799: `Math.pow(Math.max(0, 1 - _wickR), _cycleMin)` → already uses `_cycleMin`, but the bound of `_cycleMin` changes from `_runMin + _liftMin` to `_cycleMinRaw`. No code change; variable source changes upstream.
-- Line 817: `const _drainGPerHr = (_runDrainHr * _runMin + _liftDrainHr * _liftMin) / _cycleMin;` — remains weighted by actual phase minutes, but `_cycleMin` bound updates (no code change)
-- Line 818: `_drainG = _drainGPerHr * (_cycleMin / 60) * _outerFill` — time window updates (no code change)
-- Line 875: `precipWettingRate(...) * (_cycleMin / 60)` — time window updates (no code change)
-- Line 933: `const _cycleDurF = _runMin + _liftMin;` → `const _cycleDurF = _cycleMinRaw;`
+- Line 715: `const _cycleTotalMin = _runMin + _liftMin;` → `const _cycleTotalMin = _cycleMinRaw;` where `_cycleMinRaw` is a derived scalar introduced at the top of the phase-loop body. Before Phase B, `_cycleMinRaw === _runMin + _liftMin`.
+- Line 725: `_insensibleG = 10 * (_runMin + _liftMin) / 60` → `_insensibleG = 10 * _cycleMinRaw / 60`
+- Line 729: `_respRun.moistureGhr * (_runMin / 60)` → `_respRun.moistureGhr * (_cycleMinRaw / 60)` — user breathes during lift too (first real behavior change)
+- Line 730: `_cycleMin = _runMin + _liftMin` → `_cycleMin = _cycleMinRaw`
+- Line 756: update `_fabricInG` to use respiratory-inclusive value
+- Line 933: `_cycleDurF = _runMin + _liftMin` → `_cycleDurF = _cycleMinRaw`
 
-**Structural principle:** introduce `_cycleMinRaw` as a derived scalar at the top of the phase-loop body. Before Phase B, `_cycleMinRaw === _runMin + _liftMin`. This shim prepares the variable name for the 4-phase expansion in Phase B without changing its numeric value yet.
+**Structural principle:** introduce `_cycleMinRaw` as a derived scalar. Pre-Phase-B, value equals `_runMin + _liftMin`. Shim prepares the name for 4-phase expansion in Phase B.
 
-### 3.2 Phase A test harness
+### 3.2 Phase A checkpoint gate
 
-Run the 3 vectors (G1, M2, P5) post-patch. Expected deltas from baseline:
+All three must verify:
 
-- G1: sessionMR ~1.5 → ~1.55–1.65 (respiratory scaling extends slightly; drying window marginally longer; small net rise from capturing 13-min cycle wall-clock vs 10-min run+lift)
-- M2: sessionMR ~1.5 → ~1.6–1.8 (moguls run-MET 10 drives high respiratory vapor; `_cycleMinRaw = 19` vs prior 14 is a larger relative change)
-- P5: sessionMR ~2.5 → ~2.7–3.1 (powder day, `_cycleMinRaw = 32` vs prior 14 is a 2.3× change in time window; most sensitive vector)
+1. **Structural audit (§9.4 subset):** grep confirms `_respRun.moistureGhr`, `_insensibleG`, `_fabricInG`, `_cycleTotalMin`, `_cycleMin`, `_cycleDurF` all scope to `_cycleMinRaw`. No rogue `_runMin + _liftMin` concatenations remain in moisture-accounting code paths.
 
-**Phase A checkpoint gate:**
+2. **Non-ski regression (§9.5 full gate):** all 11 activities listed in spec v1.1 §9.5 produce byte-identical sessionMR, totalFluidLoss, cumStorageWmin, and layer buffer fills vs the `S31_PRE_PATCH_BASELINE.md` values. Any single byte divergence halts.
 
-- Sensitivity analysis complete: vectors shift slightly in the expected direction (upward, small magnitude). Chat verifies rough-match.
-- Non-ski activity regression: **bit-identical** to baseline. If any non-ski activity shifts by more than floating-point noise, halt. Phase A should be a no-op for non-ski because their `_runMin + _liftMin` already equals full cycle duration.
-- All existing spec-locks still green (except the baseline-capture test, which is expected to show different numbers).
-- Hand-comp §9.1 (Phase A trace) matches engine output within tolerance.
+3. **Ski direction sanity:** G1/M2/P5 post-Phase-A sessionMR values are logged. No absolute target, but sanity check: no vector changes by more than 20% of its baseline (Phase A alone is a small change; large swings indicate unintended effect).
 
-**Halt conditions for Phase A:**
-- Non-ski regression (means `_cycleMinRaw` shim leaked into non-ski code path)
-- Vector delta > 15% from expected range (means `_cycleMinRaw` is not computing what spec says)
-- Any spec-lock test regression (means a ratified invariant broke)
+### 3.3 Phase A halt conditions
 
-If Phase A checkpoint passes, commit:
+- Non-ski regression (means `_cycleMinRaw` shim leaked into non-ski code)
+- Any vector shifts by >20% (means `_cycleMinRaw` is computing something unintended)
+- grep surfaces a lingering `_runMin + _liftMin` in moisture accounting
 
-```
-git add packages/engine/src/moisture/calc_intermittent_moisture.ts \
-        packages/engine/tests/spec-locks/phy-031-cyclemin-reconciliation/
-git commit -m "S31 Phase A: _cycleMinRaw accumulator scoping (spec §4.6)
+### 3.4 Phase A commit
+
+If checkpoint passes:
+
+```bash
+git add packages/engine/src/moisture/calc_intermittent_moisture.ts
+git commit -m "S31 Phase A: _cycleMinRaw accumulator scoping (spec v1.1 §4.6)
 
 Processes-always-on accounting fix: Washburn wicking, shell drain,
 insensible perspiration, respiratory moisture, ambient vapor absorption,
@@ -233,64 +167,53 @@ so structural variable-name introduction only. Respiratory moisture
 scaling extends to full cycle (user breathes during lift).
 
 Non-ski activities verified bit-identical to pre-patch baseline.
-Spec vectors G1/M2/P5 verified within Phase A expected ranges.
+G1/M2/P5 post-Phase-A sessionMR logged (not gated).
 
-Reference: reconciliation spec §4.6."
+Reference: spec v1.1 §4.6."
 ```
 
-Do NOT proceed to Phase B until this commit lands clean and its gate passes.
+Do NOT proceed to Phase B until this commit lands clean and checkpoint passes.
 
 ---
 
 ## 4. Phase B — 4-phase cycle decomposition
 
-**Scope:** extend the cyclic phase loop from 2 phases (run + lift) to 4 phases (line + lift + transition + run) per spec §4.2. Introduce per-phase MET, per-phase EPOC continuity chain, per-phase sub-stepping for line and transition. Do **not** add rest handling yet.
+**Scope:** extend the cyclic phase loop from 2 phases (run + lift) to 4 phases (line + lift + transition + run) per spec v1.1 §4.2. Introduce per-phase MET, per-phase EPOC continuity chain, per-phase sub-stepping. Do NOT add rest handling yet.
 
 ### 4.1 What changes
 
 **Declarations:**
-- Introduce `_liftLineMin` from `cycleOverride.liftLineMin` or `phy031_constants.LIFT_LINE_MIN[tier]` — the spec §3 tier-based wait times already exist in `phy031_constants.ts` from S29 port
-- Introduce `TRANSITION_MIN = 3` constant (may already be in `phy031_constants.ts` from S29)
-- Introduce per-phase MET constants:
-  - `LINE_MET = 1.8` (Ainsworth 2011 Compendium code 20030)
-  - `TRANSITION_MET = 2.0` (Ainsworth 2011 Compendium code 05160)
-  - (lift_MET = 1.5 already exists in engine)
-- Now `_cycleMinRaw = _liftLineMin + _liftMin + TRANSITION_MIN + _runMin`
+- Introduce `_liftLineMin` from `cycleOverride.liftLineMin` or `phy031_constants.LIFT_LINE_MIN[tier]` (tier-based wait times exist from S29 port)
+- `TRANSITION_MIN = 3` constant (S29 has this, verify)
+- Per-phase MET constants:
+  - `LINE_MET = 1.8` (Ainsworth 2011 Compendium code 20030 — lift line stationary standing)
+  - `TRANSITION_MET = 2.0` (Ainsworth 2011 Compendium code 05160 — casual walking with equipment)
+  - lift_MET = 1.5 (existing)
+- `_cycleMinRaw = _liftLineMin + _liftMin + TRANSITION_MIN + _runMin`
 
-**Phase loop body** (from current lines 654–740 approximately):
+**Phase loop body reorder:**
 
-Current order:
-```
-run (single-step, lines 654–676)
-lift (sub-stepped, lines 678–712)
-cycle-total aggregation (lines 715–740)
-```
+Current: run (lines 654–676), lift (lines 678–712), cycle aggregation (715–740)
 
-New order per spec §4.2 (wall-clock sequence `line → lift → transition → run`):
-```
-line       (sub-stepped over _liftLineMin minutes) [NEW]
-lift       (sub-stepped over _liftMin minutes)     [existing, EPOC seed changes]
-transition (sub-stepped over TRANSITION_MIN minutes) [NEW]
-run        (single-step over _runMin minutes)     [existing, otherwise unchanged]
-cycle-total aggregation [4 phases instead of 2]
-```
+New (wall-clock order line → lift → transition → run):
+1. Line sub-stepped over `_liftLineMin` minutes [NEW]
+2. Lift sub-stepped over `_liftMin` minutes [existing, EPOC seed changes]
+3. Transition sub-stepped over `TRANSITION_MIN` minutes [NEW]
+4. Run single-step over `_runMin` minutes [existing, otherwise unchanged]
+5. 4-phase aggregation [changed from 2]
 
-**EPOC continuity chain** per spec §4.3.1:
+**EPOC continuity chain per spec v1.1 §4.3.1:**
 
-- `_prevRunEndMET` — new cross-cycle state, stores `_METrunEnd` from each cycle for use by `line[c+1]` EPOC seed
-- line[c] seed (c > 0): EPOC decay from `_prevRunEndMET` with `tFromRunEnd = 0` at start of line
-- line[0] seed: basal 1.5 MET (no EPOC, user just arrived)
-- lift[c] seed: continues EPOC from line-end with `tFromRunEnd = _liftLineMin`
-- transition[c] seed: continues EPOC from lift-end with `tFromRunEnd = _liftLineMin + _liftMin`, MET target 2.0 overlaid
-- run[c]: reseeds to full `_METrun`, computes `_METrunEnd` for cross-cycle carry
+- `_prevRunEndMET` — new cross-cycle state, stores run-end MET from each cycle
+- line[c] seed (c > 0): EPOC decay from `_prevRunEndMET` with `tFromRunEnd = 0`
+- line[0] seed: basal 1.5 MET (no EPOC, cycle 0 start)
+- lift[c] seed: continues EPOC from line-end, tFromRunEnd = `_liftLineMin`
+- transition[c] seed: continues EPOC from lift-end, MET target 2.0 overlaid
+- run[c]: reseeds to `_METrun`, computes run-end MET for cross-cycle carry
 
-**Per-phase physics:**
-- Each phase calls full primitive suite per spec §5.6 (`iterativeTSkin`, `computeMetabolicHeat`, `computeConvectiveHeatLoss`, `computeRadiativeHeatLoss`, `computeRespiratoryHeatLoss`, `computeEdiff`, `computeEmax`, `computeSweatRate`, `shiveringBoost`)
-- `civdProtectionFromSkin` snapshot once per cycle at cycle entry (unchanged)
-- Wind: line/lift/transition use ambient only; run uses `windMph + _cycleSpeedWMs` (unchanged)
+**Per-phase physics:** each phase calls full primitive suite per spec v1.1 §5.6 (iterativeTSkin, computeMetabolicHeat, computeConvectiveHeatLoss, computeRadiativeHeatLoss, computeRespiratoryHeatLoss, computeEdiff, computeEmax, computeSweatRate, shiveringBoost).
 
-**Tier 1 skip:** when `_liftLineMin === 0` (Tier 1 Ghost Town), skip the line sub-step loop entirely. Implementation:
-
+**Tier 1 skip:** when `_liftLineMin === 0` (Tier 1 Ghost Town):
 ```typescript
 let _sweatLineG = 0, _lineCondensG = 0, _lineExcessG = 0, _lineStorage = 0;
 if (_liftLineMin > 0) {
@@ -300,47 +223,34 @@ if (_liftLineMin > 0) {
 }
 ```
 
-This keeps Vector G1 (Tier 1 Ghost Town, `_liftLineMin = 0`) structurally identical to non-line scenarios while still exercising the 4-phase architecture for other tiers.
+**Condensation handling:** per-phase accumulation same pattern as lift (lines 705–708). Sum all four phases' condensation into `_cycleCondensG` for single-snapshot placement (§5.8 — per-phase placement is Model Refinement, not Phase B scope).
 
-**Condensation handling:**
-- Line: per-minute condensation accumulation pattern identical to lift (current lines 705–708)
-- Transition: per-minute condensation accumulation, same pattern
-- Run: unchanged
-- Sum all four phases' condensation into `_cycleCondensG` for single-snapshot placement (unchanged per spec §5.8 — placement per-phase is flagged as Model Refinement, not Phase B scope)
+**Storage bookkeeping per spec v1.1 §5.9:** `_cycleTotalWmin = _lineStorage + _liftStorage + _transStorage + _runStorage`.
 
-**Storage bookkeeping per spec §5.9:** `_cycleTotalWmin = _lineStorage + _liftStorage + _transStorage + _runStorage`
+### 4.2 Phase B checkpoint gate
 
-### 4.2 Phase B test harness
+1. **Structural audit (§9.4 subset):** verify 4-phase loop is in declared order by code review. Verify per-phase MET constants match spec. Verify EPOC continuity: log `_METstart_line` for cycles 1, 5, 10 of each vector and confirm inheritance from `_prevRunEndMET`. Verify Tier 1 skip active for G1.
 
-All 3 vectors post-patch should approach their spec §9 targets **except for the rest-phase contribution**, which Phase B doesn't add yet. Expected post-Phase-B values (Phase A delta + 4-phase effects, pre-rest):
+2. **Non-ski regression (§9.5 full gate):** still bit-identical. Non-ski activities have no line or transition phase in `profiles.ts`, so 4-phase loop code path should never execute for them.
 
-- G1 (Tier 1, line=0): ~1.6–1.9. Minimal change from Phase A since Tier 1 has no line phase; transition phase adds small sweat production. Lunch reset hasn't landed so sessionMR stays below target 2.6.
-- M2 (Tier 2, line=2): ~2.5–3.0. Line + transition phases accumulate cold-exposure damage absent in baseline. Still below §9 target 4.3 because lunch reset hasn't landed.
-- P5 (Tier 5, line=15): ~3.5–4.2. Biggest Phase B delta — 15-min line phases accumulate serious cold exposure and condensation load. Still below §9 target 5.5 because lunch reset hasn't landed.
+3. **Ski trajectory shape (§9.6 subset):** per-cycle MR arrays for M2 and P5 show measurably higher values at matching cycle indices than G1's, because M2/P5 have non-zero line phases accumulating cold exposure. If G1 and M2/P5 trajectories are similar despite different line phase durations, Phase B didn't land.
 
-**Phase B checkpoint gate:**
-- Vector deltas match expected Phase-B ranges (chat hand-comp cross-check)
-- Non-ski activities still bit-identical to baseline
-- EPOC continuity verified: per-cycle trace shows `_METstart_line` for cycle c inheriting from `_METrunEnd` of cycle c-1
-- All existing spec-locks green except reconciliation suite (in flight)
-- New test assertions for 4-phase decomposition green
+### 4.3 Phase B halt conditions
 
-**Halt conditions for Phase B:**
-- Non-ski regression (scope leak)
-- Any vector lands BELOW Phase A output (means new phase physics is removing heat, wrong direction)
-- Any vector > 5.5 (means rest physics would push way above §9 target — something over-accumulating)
-- Tier 1 scenario (G1) doesn't match no-line case (means line-skip didn't work)
+- Non-ski regression
+- G1 trajectory unchanged from Phase A (means line=0 path broken)
+- M2 trajectory unchanged from Phase A (means line phase code path not executing)
+- EPOC continuity broken (line-start MET not inheriting from prior cycle's run-end)
 
-If Phase B checkpoint passes, commit:
+### 4.4 Phase B commit
 
-```
+```bash
 git add packages/engine/src/moisture/calc_intermittent_moisture.ts \
-        packages/engine/src/activities/phy031_constants.ts \
-        packages/engine/tests/spec-locks/phy-031-cyclemin-reconciliation/
-git commit -m "S31 Phase B: 4-phase cycle decomposition (spec §4, §5)
+        packages/engine/src/activities/phy031_constants.ts
+git commit -m "S31 Phase B: 4-phase cycle decomposition (spec v1.1 §4, §5)
 
 Extends cyclic phase loop from (run + lift) to (line + lift + transition + run)
-in wall-clock order per spec §4.2. Per-phase MET: LINE_MET=1.8 (Ainsworth
+in wall-clock order per spec v1.1 §4.2. Per-phase MET: LINE_MET=1.8 (Ainsworth
 20030), TRANSITION_MET=2.0 (Ainsworth 05160). EPOC continuity chain
 run-end → line → lift → transition → run with cross-cycle _prevRunEndMET
 carry.
@@ -350,20 +260,21 @@ Tier 1 optimization: skip line sub-step loop when _liftLineMin === 0.
 Condensation placement preserved per-cycle snapshot (Model Refinement
 MR-PHY-031-CONDENSATION-PER-PHASE deferred to LC7). All primitives
 (iterativeTSkin, sweat rate, shell drain, etc.) applied per phase per
-spec §5.6.
+spec v1.1 §5.6.
 
-Non-ski activities verified bit-identical to pre-Phase-A baseline.
+Non-ski activities verified bit-identical.
+Trajectory shape confirms line-phase accumulation active for M2 and P5.
 
-Reference: reconciliation spec §4, §5."
+Reference: spec v1.1 §4, §5."
 ```
 
-Do NOT proceed to Phase C until Phase B commit lands clean and its gate passes.
+Do NOT proceed to Phase C until Phase B commit lands clean and checkpoint passes.
 
 ---
 
 ## 5. Phase C — Rest-phase integration
 
-**Scope:** add the lunch (45 min, shell-off, 12:15 PM) and otherBreak (15 min, shell-on, 2:30 PM) rest phases per spec §6. Extend `CycleOverride` interface with `lunch?: boolean` and `otherBreak?: boolean` fields per spec §8.6. Wire `evaluate.ts` to pass these booleans. Wire ski trip form schema for the two boolean fields with default logic.
+**Scope:** add lunch (45 min, shell-off, 12:15 PM) and otherBreak (15 min, shell-on, 2:30 PM) rest phases per spec v1.1 §6. Extend `CycleOverride` interface with `lunch?: boolean` and `otherBreak?: boolean` per spec v1.1 §8.6. Wire `evaluate.ts` to pass these booleans.
 
 ### 5.1 What changes
 
@@ -372,46 +283,45 @@ Do NOT proceed to Phase C until Phase B commit lands clean and its gate passes.
 interface CycleOverride {
   totalCycles?: number;
   // ... existing fields ...
-  lunch?: boolean;      // NEW
-  otherBreak?: boolean; // NEW
+  lunch?: boolean;      // NEW (spec v1.1 §8.6)
+  otherBreak?: boolean; // NEW (spec v1.1 §8.6)
   [key: string]: unknown;
 }
 ```
 
-This is an interface extension, NOT a function signature change. `calcIntermittentMoisture` signature is unchanged. Per spec §8.6 mandate.
+Interface extension, NOT function signature change. Per spec v1.1 §8.6.
 
-**Rest-phase insertion logic** in the session-level loop:
-- Compute wall-clock cycle start times: `cycle[c] starts at sessionStart + Σ(cycleMin[0..c-1]) + Σ(rest_durations_already_inserted)`
-- Before entering cycle c, check if any rest phase target (12:15 PM, 2:30 PM) falls within the pending cycle's wall-clock window
-- If yes: insert rest phase, advance wall-clock by rest duration, run rest-phase physics integration (spec §6.7), then run cycle c
+**Rest-phase insertion logic** in session-level loop:
+- Compute wall-clock cycle start times: `cycle[c] starts at sessionStart + Σ(cycleMin[0..c-1]) + Σ(rest_durations_inserted)`
+- Before entering cycle c, check if any rest phase target (12:15 PM, 2:30 PM) falls within pending cycle's wall-clock window
+- If yes: insert rest phase, advance wall-clock by rest duration, run rest-phase physics integration (§6.7), then run cycle c
 
 **Lunch integration (§6.7.1):** shell-off
 - `_effectiveIm_lunch = imSeries(base, mid, insulative)` — 3-layer series without shell
 - `_Rclo_lunch = _Rclo × (1 - shellCLOfraction)`
 - Per-minute sub-step loop (45 iterations)
-- Inner-layer drying applied per minute: base/mid/insulative drain rates computed against indoor conditions
+- Inner-layer drying per minute against indoor conditions
 - Shell drains separately as draped item: `2 × getDrainRate(68, 40, 0, shell.im, 0, bsa)`
-- After loop: re-attach shell, recompute ambient vapor absorption against insulative (outermost of inner ensemble during lunch)
+- After loop: re-attach shell, recompute ambient vapor absorption against insulative
 
 **otherBreak integration (§6.7.2):** shell-on
 - `_effectiveIm_break = ensembleIm` (unchanged)
 - Per-minute sub-step loop (15 iterations)
 - Shell drains on-body at indoor conditions
-- Inner layers drain via standard cascade + Washburn scoped to 15-min window
 
 **Shared bookkeeping (§6.7.3):**
 - `_totalFluidLoss += _sweatRestG + _insensibleRest + _respRest`
 - `_cumStorageWmin += _restStorage`
-- Push phase markers into `_perCycleHeatStorage` with `phase: 'lunch'` or `phase: 'otherBreak'`
+- Push phase markers into `_perCycleHeatStorage`
 - Carry `_prevTskin` from rest-end to next cycle's CIVD snapshot
 
 **Edge cases (§6.6):**
-- If session ends before rest target → skip silently (short session)
-- If session starts after rest target → skip silently (late start)
-- Rest phases fit between cycles — no mid-cycle interruption
-- No conflict between lunch (12:15 PM) and otherBreak (2:30 PM) — 2h15m gap well exceeds rest durations
+- Session ends before rest target → skip silently
+- Session starts after rest target → skip silently
+- Rest phases between cycles, no mid-cycle interruption
+- No conflict between lunch 12:15 PM and otherBreak 2:30 PM (2h15m gap)
 
-**`evaluate.ts` changes** (around the `computeResortCycleOverride` helper, S29 line ~430):
+**`evaluate.ts` changes:**
 ```typescript
 const cycleOverride = {
   totalCycles: ...,
@@ -421,85 +331,70 @@ const cycleOverride = {
 };
 ```
 
-Where `defaultLunch` and `defaultOtherBreak` return `true` if `durationHrs > 5`, else `false` (per spec §8.6 default note — implementation-session scope).
+Where `defaultLunch(hrs) = hrs > 5`, `defaultOtherBreak(hrs) = hrs > 5`.
 
-**Ski trip form schema** (placeholder filename per S30 spec):
-- Add `lunch: boolean` and `otherBreak: boolean` fields to the ski-specific trip form type
-- UI default-computation handled in the form component (not engine scope)
+**Ski trip form schema:** add `lunch: boolean` and `otherBreak: boolean` to ski-specific trip form type.
 
-### 5.2 Phase C test harness — THE GATE SESSION
+### 5.2 Phase C checkpoint — the close gate
 
-All 8 criteria from spec §9.5 must pass at this checkpoint. This is the close gate for S31.
+All four spec v1.1 §9 gates must pass:
 
-**Criterion 1: G1 sessionMR ∈ [2.3, 2.9]**
-- Expected target 2.6 per spec §9.2.6
+#### 9.4 Structural audit
+Verify all 8 items by code review. Specifically for Phase C:
+- `CycleOverride` interface has `lunch?` and `otherBreak?`
+- No change to `calcIntermittentMoisture` signature
+- Rest-phase integration fires at wall-clock 12:15 PM / 2:30 PM
+- Default helpers in evaluate.ts return `true` for durationHrs > 5
 
-**Criterion 2: M2 sessionMR ∈ [4.0, 4.6]** ← **S-001 CLOSURE**
-- Expected target 4.3 per spec §9.3.6
-- This is the canonical S-001 Breckenridge scenario anchor
+#### 9.5 Non-ski bit-identical regression
+All 11 non-ski activities: byte-identical to pre-S31 baseline. No exceptions. Cycling, running, hiking, etc. have no lunch or otherBreak in their cyclic profiles — the new CycleOverride fields default to `undefined` and rest-phase code path should not execute.
 
-**Criterion 3: P5 sessionMR ∈ [5.2, 5.8]**
-- Expected target 5.5 per spec §9.4.6
+#### 9.6 Per-cycle trajectory shape gates
 
-**Criterion 4: Per-cycle MR trajectories within ±0.5 at explicitly-traced cycles**
-- G1: cycles 0, 13 (pre-lunch peak), 14 (post-lunch low), 22, 30
-- M2: cycles 0, 9 (pre-lunch peak), 10 (post-lunch low), 14, 20
-- P5: cycles 0, 5 (pre-lunch peak), 6 (post-lunch low), 8, 11
-- All traced values per spec §9.2–§9.4
+1. Lunch reset dip visible in G1, M2, P5 per-cycle MR arrays (at approximately cycles 13, 9, 5 respectively)
+2. Dip magnitude at least 0.5 MR below pre-lunch peak
+3. Post-lunch re-climb occurs (cycles after lunch show renewed MR progression)
+4. Line-phase accumulation visible in P5 (per-cycle MR > G1 at matching wall-clock times)
+5. EPOC continuity in line-start MET (cycles 1, 5, 10)
 
-**Criterion 5: `_totalFluidLoss` within ±10% of spec §9 targets**
-- G1: ~780 g ± 78 g
-- M2: ~2,100 g ± 210 g
-- P5: ~1,650 g ± 165 g
+#### 9.7 Direction-of-change gates
 
-**Criterion 6: Final layer buffer fills within ±15%**
-- Per per-vector table in spec §9.X.6
+Compare post-patch G1/M2/P5 sessionMR to §9.3 pre-Phase-A baselines (2.50, 6.40, 4.10):
 
-**Criterion 7: Pre-patch regression match**
-- Baseline capture values from §2.1 of this kickoff must be confirmable by running current HEAD engine (pre-patch) with same inputs — validates the delta attribution
-
-**Criterion 8: Non-ski activity bit-identical regression**
-- 11 activities named in spec §9.5 criterion #8 must produce byte-identical output vs pre-S31 baseline
-
-**All 8 must be green for S31 to close.** If any gate fails, halt and escalate per §6 below.
+1. `|ΔP5| > |ΔG1|` — P5 has 15-min line phase, G1 has 0-min; reconciliation compounds more in P5
+2. `|ΔG1| < 1.0 MR` — G1 is Tier 1 minimal-change; large swing indicates something unintended
+3. At least one vector has `|Δ| > 0.1 MR` — confirms reconciliation physics integrated
 
 ### 5.3 Phase C halt-and-escalate protocol
 
-Per spec §9.5 final paragraph:
+Per spec v1.1 §9.9:
 
-> "If any vector or non-ski regression fails to converge within tolerance, the implementation session halts and escalates rather than adjusting constants to fit — the physics is what it is, and adjusted numbers that match the expected values by parameter-gaming violate Cardinal Rule #1."
-
-**If a gate criterion fails:**
-
-1. **Do not tune constants** (MET values, indoor T/RH, drain multipliers, drying formulas) to hit expected values.
-2. **Capture the actual engine output** in a diagnostic doc at `LC6_Planning/audits/S31_GATE_FAILURE_<criterion#>.md`
-3. **Identify the class of failure:**
-   - **Low output:** some accumulator scoping incomplete, or physics integration missing a phase
-   - **High output:** cascade or condensation placing too much mass at skin-adjacent layers
-   - **Wrong trajectory:** rest reset dip absent or mis-placed, EPOC chain not continuous
-   - **Non-ski leak:** `_cycleMinRaw` or phase-loop change leaked into steady-state path or non-ski cyclic path
+**If any gate fails:**
+1. **Do not tune constants** (MET values, indoor T/RH, drain multipliers)
+2. **Capture diagnostic** at `LC6_Planning/audits/S31_GATE_FAILURE_<item>.md`
+3. **Identify failure class:**
+   - Structural: patch didn't land — read code, find mistake
+   - Non-ski leak: scope leakage — find where ski code path touched non-ski execution
+   - Shape: physics integration wrong — per-phase output unexpected
+   - Direction: magnitudes or ordering wrong — reconciliation affecting something unintended
 4. **Escalate to user** with:
-   - Which criterion failed and by how much
-   - Engine output vs expected, with per-cycle trajectory
+   - Which gate failed
+   - Engine output vs expected pattern
    - Hypothesis on class of failure
-   - Proposed next action (patch a specific section? escalate to Chat for spec re-examination?)
-5. **Do not commit Phase C until resolution reached.**
+   - Proposed next action
+5. **Do not commit Phase C** until resolution reached
 
-If resolution requires spec changes, the session halts and Chat authors an addendum spec (not in S31 scope to author spec changes; that's a separate session).
+### 5.4 Phase C commit — successful close
 
-### 5.4 Phase C commit sequence
+If all gates green:
 
-If all 8 gates green, commit:
-
-```
+```bash
 git add packages/engine/src/moisture/calc_intermittent_moisture.ts \
         packages/engine/src/evaluate.ts \
         packages/engine/src/activities/phy031_constants.ts \
-        packages/engine/tests/spec-locks/phy-031-cyclemin-reconciliation/ \
-        packages/engine/src/activities/ski_trip_form.ts \
-        [ski trip form schema file — actual filename TBD]
+        [ski trip form schema file]
 
-git commit -m "S31 Phase C: rest-phase integration (spec §6)
+git commit -m "S31 Phase C: rest-phase integration (spec v1.1 §6)
 
 Lunch (45 min, shell-off, 12:15 PM) and otherBreak (15 min, shell-on,
 2:30 PM) rest phases integrated into session-level loop. Indoor conditions
@@ -508,98 +403,118 @@ lunch via direct exposure (shell off, im_series of base+mid+insulative);
 shell drains as draped item at 2× worn rate.
 
 CycleOverride interface extended with lunch? and otherBreak? optional
-fields. No signature change to calcIntermittentMoisture per spec §8.6.
+fields. No signature change to calcIntermittentMoisture per spec v1.1 §8.6.
 evaluate.ts computeResortCycleOverride wires defaults (true for
-durationHrs > 5, else false).
+durationHrs > 5).
 
-Ski trip form schema extended with two boolean fields.
+Ski trip form schema extended.
 
-Wall-clock placement per spec §6.5: deterministic 12:15 PM / 2:30 PM.
+Wall-clock placement per spec v1.1 §6.5: deterministic 12:15 PM / 2:30 PM.
 Edge cases per §6.6: rest phases outside session window silently skipped.
 
-ALL 8 GATE CRITERIA GREEN:
-  G1 sessionMR [target 2.6, observed {actual}]
-  M2 sessionMR [target 4.3, observed {actual}] ← S-001 closure
-  P5 sessionMR [target 5.5, observed {actual}]
-  Per-cycle trajectories within ±0.5
-  totalFluidLoss within ±10%
-  Layer buffer fills within ±15%
-  Pre-patch regression confirms delta attribution
-  Non-ski 11 activities BIT-IDENTICAL to pre-S31 baseline
+ALL PATCH-CORRECTNESS GATES GREEN:
+  §9.4 Structural audit: 8/8 items verified
+  §9.5 Non-ski bit-identical: 11/11 activities unchanged
+  §9.6 Trajectory shape: lunch dip, re-climb, line accumulation, EPOC all present
+  §9.7 Direction-of-change: |ΔP5| > |ΔG1|, |ΔG1| < 1.0, ≥1 vector changed
 
-S-001 (S26-SYSTEMATIC-MR-UNDERESTIMATION) CLOSED per spec §11 close criteria.
+Post-patch reference values logged to S31_POST_PATCH_BASELINE.md.
 
-Reference: reconciliation spec §6, §8, §9, §11."
+S-001 (S26-SYSTEMATIC-MR-UNDERESTIMATION) annotation updated per spec
+v1.1 §11.2. S-001 remains open pending broader MR-fidelity work docket.
+
+S29-PHY-031-CYCLEMIN-PHYSICS-GAP CLOSED per spec v1.1 §11.3.
+
+Reference: spec v1.1 §6, §8, §9, §11."
 ```
 
 ---
 
-## 6. Tracker and registry closure
+## 6. Post-Phase-C: reference value logging + tracker closure
 
-After Phase C commit lands and all 8 gates green:
+After Phase C commit lands:
 
-### 6.1 Registry updates
-- **PHY-031-CYCLEMIN-RECONCILIATION v1 row:** Engine column DRAFT → ACTIVE; test count 0 → (actual test count in phy-031-cyclemin-reconciliation/ subdirectory); Last Verified → S31 commit SHA
-- **PHY-031 row:** Reality status PARTIAL → ACTIVE; append to annotation "S31 closed reconciliation (commit [S31 SHA]); engine implementation ACTIVE."
-- Coverage heat map updated
-- Add v1.3 version-history row: "PHY-031 and PHY-031-CYCLEMIN-RECONCILIATION rows reality-status ACTIVE. S-001 closed."
+### 6.1 Log post-patch baselines
 
-### 6.2 Tracker updates
-- `<!-- S31-APPLIED -->` and `<!-- S31-RECONCILIATION-APPLIED -->` markers
-- New "Status as of Session 31" block (S-001 closure + forward plan)
-- Move `S26-SYSTEMATIC-MR-UNDERESTIMATION` to Section F (RESOLVED)
+Create `LC6_Planning/baselines/S31_POST_PATCH_BASELINE.md`:
+
+```markdown
+# S31 Post-Patch Baseline (spec v1.1 §9.8)
+
+**Engine HEAD:** [Phase C commit SHA]
+**Captured:** [timestamp]
+**Purpose:** Reference values for future MR-fidelity work. NOT S31 gate targets.
+
+## Ski vectors (optimal_gear pill)
+
+| Vector | Pre-Phase-A sessionMR | Post-patch sessionMR | Δ |
+|---|---|---|---|
+| G1 | 2.50 | [observed] | [computed] |
+| M2 | 6.40 | [observed] | [computed] |
+| P5 | 4.10 | [observed] | [computed] |
+
+## Per-cycle trajectories
+
+[Full perCycleMR array for each vector]
+
+## Layer buffer final fills
+
+[base, mid, insulative, shell per vector]
+
+## Fluid loss and storage
+
+[totalFluidLoss, cumStorageWmin per vector]
+
+## Non-ski regression reference
+
+All 11 activities unchanged from pre-patch. See S31_PRE_PATCH_BASELINE.md.
+```
+
+### 6.2 Registry updates
+
+- **PHY-031-CYCLEMIN-RECONCILIATION v1.1 row:** Engine column DRAFT → ACTIVE; Last Verified → S31 Phase C commit SHA
+- **PHY-031 row:** Reality status PARTIAL → ACTIVE; annotate "S31 landed reconciliation physics (commit [SHA]); engine ACTIVE"
+- Add v1.3 version-history row: "PHY-031 + PHY-031-CYCLEMIN-RECONCILIATION v1.1 reality-status ACTIVE. S-001 remains open per spec v1.1 §11."
+
+### 6.3 Tracker updates
+
+- `<!-- S31-APPLIED -->` marker
+- New "Status as of Session 31" block
 - Move `S29-PHY-031-CYCLEMIN-PHYSICS-GAP` to Section F (RESOLVED)
+- Update `S-001` annotation per spec v1.1 §11.2 (stays open, annotation updated)
 - Update SessionA status: deferred → authorized for next session
-- Section G grep list: retain closed IDs (they stay findable as historical record)
+- Add new tracker items:
+  - `MR-CRITICAL-MOMENTS-BUDGET-TIGHTER` (Model Refinement, surfaced S31)
+  - `S31-OBSERVATION-WINNER-INVARIANCE` (strategy engine question, surfaced S31)
 
-### 6.3 Doc-only close commit
+### 6.4 Doc-only close commit
 
-Chat authors the S31 close handoff (mirror of S30 handoff pattern) with:
+Chat authors S31 close handoff (mirror of S30 pattern) with:
 - Exact anchor strings for registry and tracker edits
 - Close script
-- Two-commit SHA backfill pattern (apply the lesson from S30)
+- Two-commit SHA backfill pattern (lesson from S30)
 
-That's a separate Chat turn after Code reports S-001 closure. Not part of this kickoff.
+Separate Chat turn after Phase C commits. Not part of this kickoff.
 
 ---
 
 ## 7. Push sequence — first push since S28
 
-After the S31 close commits land:
+After S31 close commits land:
 
 ```bash
-# Verify all gates green
+# Verify all patch-correctness gates green
 # Verify working tree clean
-# Verify S-001 and S29-PHY-031-CYCLEMIN-PHYSICS-GAP closed in tracker
+# Verify S29-PHY-031-CYCLEMIN-PHYSICS-GAP closed, S-001 annotation updated
 
-# Final check: entire commit chain
+# Final check: commit chain
 git log --oneline origin/session-13-phy-humid-v2..HEAD
-# Expected output (8 commits approximately):
-#   <S31 close doc commit> S31 close (registry + tracker)
-#   <S31 close SHA backfill>
-#   <S31 Phase C>  rest-phase integration
-#   <S31 Phase B>  4-phase decomposition
-#   <S31 Phase A>  _cycleMinRaw scoping
-#   4e84e76        S30 SHA backfill
-#   28731fb        S30 ratification
-#   6edacaf        S30 kickoff / S29 ritual backfill
-#   29e0b30        S29 close docs
-#   7289e8b        S29 PHY-031 port
-#   435e321        S29/SessionA kickoffs
 
-# Push (first push since before S29)
+# Push
 git push origin session-13-phy-humid-v2
-
-# Verify pushed
-git log origin/session-13-phy-humid-v2..HEAD --oneline
-# Should be empty (no unpushed commits)
 ```
 
-Then, per-session branch protocol, decide:
-- Merge to main (if that's the LC6 integration pattern), OR
-- Keep branch for SessionA baseline capture (likely, given SessionA opens next)
-
-User confirms which before merge/branch-close.
+Post-push: per-session branch protocol decides merge or keep-branch.
 
 ---
 
@@ -607,119 +522,117 @@ User confirms which before merge/branch-close.
 
 S31 formally closes when ALL of the following are true:
 
-- [ ] All 8 gate criteria from spec §9.5 green at Phase C commit
-- [ ] `S26-SYSTEMATIC-MR-UNDERESTIMATION` per spec §11 close criteria: Vector M2 sessionMR ∈ [4.0, 4.6], per-cycle trajectory shows lunch reset dip + afternoon re-climb within ±0.5 MR, sessionMR maps to "yellow pacing" tier
+- [ ] Spec v1.1 authored and committed
+- [ ] Phase A commit landed with structural audit pass + non-ski bit-identical
+- [ ] Phase B commit landed with structural audit pass + non-ski bit-identical + shape gate for line-phase accumulation
+- [ ] Phase C commit landed with ALL §9.4–§9.7 gates pass
+- [ ] `S31_POST_PATCH_BASELINE.md` authored with post-patch reference values
 - [ ] `S29-PHY-031-CYCLEMIN-PHYSICS-GAP` status flipped to CLOSED
+- [ ] `S-001` tracker annotation updated per spec v1.1 §11.2 (stays open)
 - [ ] Registry PHY-031 row reality status: PARTIAL → ACTIVE
-- [ ] Registry PHY-031-CYCLEMIN-RECONCILIATION v1 row: engine DRAFT → ACTIVE
+- [ ] Registry PHY-031-CYCLEMIN-RECONCILIATION v1.1 row: engine DRAFT → ACTIVE
+- [ ] New tracker items added: `MR-CRITICAL-MOMENTS-BUDGET-TIGHTER`, `S31-OBSERVATION-WINNER-INVARIANCE`
 - [ ] Branch `session-13-phy-humid-v2` pushed to origin
 - [ ] Working tree clean
-- [ ] Test suite green (all spec-locks, no regressions)
-- [ ] Non-ski activities bit-identical to pre-S31 baseline
+- [ ] Test suite green (676 passed, 1 skipped, 0 failed)
 
-If any criterion fails, S31 stays open. Partial credit not granted — the whole point of the spec was to close S-001, and S-001 closes only when M2 gate passes.
-
----
-
-## 9. Hand-computed verification trace document
-
-**This section extends spec §9's summary traces to full-primitive depth, per Cardinal Rule #8.** The spec §9 traces are Option-C analytical (primitive outputs at convergence). This §9 extends them to Option-A calculation traces — actual arithmetic for the primitives at key cycles, with intermediate values so engine output can be cross-verified at the sub-cycle level.
-
-Format: for each vector, compute primitive-level values at three key cycles (cycle 0 warmup, pre-lunch peak cycle, post-lunch recovery cycle) and at each rest phase. Total: 9 primitive traces across 3 vectors + 6 rest-phase traces.
-
-**Due to length (500+ lines of arithmetic), this §9 is a separate reference document:**
-
-`LC6_Planning/audits/S31_HANDCOMP_TRACE.md`
-
-Chat produces this document as part of the S31 kickoff package. Code consults it during Phase A/B/C gate verification. Any divergence between engine output and hand-comp trace at primitive level (individual `iterativeTSkin` solve result, individual `computeSweatRate` output, individual storage per minute) signals a specific primitive-level bug rather than a system-integration bug.
-
-**The trace document will be authored next** — this kickoff references it but does not embed it (keeping this kickoff at navigable length).
+If any criterion fails, S31 stays open. **S-001 closure is NOT a criterion** — that's explicitly out of scope per spec v1.1 §11.
 
 ---
 
-## 10. Forward plan after S31 closes
+## 9. Forward plan after S31 closes
 
-Priority order (unchanged from my earlier summary):
+Priority order:
 
 **Tier 1 — Immediate:**
-- Push chain to origin (step §7 above)
-- Begin field cross-check monitoring (spec §11.4 — first 10 real ski sessions post-impl)
-- Re-author `S29-MATRIX-PENDING` 4-scenario matrix with verified fixtures and correct metric read
+- Push chain to origin (§7)
+- Begin field cross-check monitoring (spec v1.1 §11.5 — first 10 real ski sessions post-impl)
+- Re-author `S29-MATRIX-PENDING` with verified fixtures + S31 post-patch reference values
+- MR-fidelity work arc toward actual S-001 closure (requires resolution of ongoing open bugs; consult `LC6_Master_Tracking.md`)
 
 **Tier 2 — SessionA** (LC6 State-of-the-Port audit, drafted S28, held since)
 
-**Tier 3 — `S30-AUDIT-*` investigations** (5 tracker items from spec §8.5)
+**Tier 3 — `S30-AUDIT-*` investigations** (5 tracker items from S30 §8.5)
 
 **Tier 4 — Pending spec ratifications:** PHY-SHELL-GATE v1, PHY-MICROCLIMATE-VP v1
 
-**Tier 5 — Legacy drift cleanup:** `S27-DRIFT-1`, `S27-DRIFT-2`, `S27-TSC-ERRORS-BASELINE`, `S27-STALE-PLANNING-DOCS`
+**Tier 5 — New tracker items surfaced in S31:**
+- `MR-CRITICAL-MOMENTS-BUDGET-TIGHTER` — CM/window budget refinement, post-precognition-pacing closure
+- `S31-OBSERVATION-WINNER-INVARIANCE` — strategy engine scenario-sensitivity investigation
 
-**Tier 6 — Model Refinement docket:** `MR-PHY-031-CONDENSATION-PER-PHASE`, `MR-PHY-031-DRAPED-SHELL-DRAIN`, ability/effort-tier MET multiplier, REST_FRACTION variability
-
-**Tier 7 — Outstanding investigations:** `S27-DUAL-BREATHABILITY-MAPPING`, `S28-GOV-MODEL-REFINEMENT-PROCESS`, `GAP-PHY-031-POWDER-THRESHOLD`
-
----
-
-## 11. Non-goals for S31
-
-Things S31 deliberately does NOT do (mirroring spec §12):
-
-- **Not any signature change to `calcIntermittentMoisture`.** Interface extension on `CycleOverride` per spec §8.6.
-- **Not any modification to ratified PHY-031 v1 values.** REST_FRACTION stays 0.20, runMin tables unchanged, liftLineMin tables unchanged, holiday windows unchanged, `_lc5Mets` unchanged.
-- **Not any non-ski physics change.** Phase A's `_cycleMinRaw` scoping fix should be a no-op for non-ski because their `_runMin + _liftMin` already equals full cycle duration.
-- **Not Phases B/C/D of ski-history integration.** Phase A (manual entry) only.
-- **Not powder signal source wiring.** `GAP-PHY-031-POWDER-THRESHOLD` stays open.
-- **Not addressing any `S30-AUDIT-*` tracker item.** Those flow to future sessions.
-- **Not UI design work.** Form schema extension minimal; default-computation logic in form component.
-- **Not Model Refinement implementation.** `MR-PHY-031-*` flags stay LC7 scope.
-- **Not tuning any constant to hit expected MR values.** Halt-and-escalate per §5.3.
+**Tier 6 — Model Refinement docket:** LC7 scope items per spec v1.1 §10.2
 
 ---
 
-## 12. Handoff receipt format
+## 10. Non-goals for S31
+
+Things S31 deliberately does NOT do (mirror spec v1.1 §12):
+
+- **NOT close S-001.** Explicit. Per spec v1.1 §11. S-001 stays open with updated annotation.
+- **NOT any signature change to `calcIntermittentMoisture`.** Interface extension only.
+- **NOT any modification to ratified PHY-031 v1 values.** REST_FRACTION=0.20 stays, runMin tables stay, etc.
+- **NOT any non-ski physics change.** §9.5 bit-identical gate enforces.
+- **NOT Phases B/C/D of ski-history integration.** Phase A only.
+- **NOT powder signal source wiring.**
+- **NOT address any `S30-AUDIT-*` item.**
+- **NOT UI design work.** Schema extension minimal.
+- **NOT Model Refinement implementation.**
+- **NOT tune any constant to hit specific MR values.** Halt-and-escalate per §9.9.
+- **NOT wire `ventEvents` TODO at evaluate.ts:487.** Pacing loop stays stubbed.
+- **NOT verify absolute MR values as gate criteria.** Spec v1.1 §9 is patch-correctness-based.
+
+---
+
+## 11. Handoff receipt format
 
 When S31 closes successfully, Code reports:
 
 ```
-S31 complete. S-001 CLOSED.
+S31 complete. Reconciliation physics landed per spec v1.1.
 
 Branch:          session-13-phy-humid-v2 (pushed to origin)
 HEAD:            [S31 close SHA]
-Commits added:   5 (Phase A, Phase B, Phase C, close docs, SHA backfill)
-Gates:           8 of 8 green
-S-001:           CLOSED (M2 sessionMR {actual} ∈ [4.0, 4.6])
+Commits added:   5 (spec v1.1, Phase A, Phase B, Phase C, close docs)
+Gates:           §9.4 structural (8/8), §9.5 non-ski (11/11 bit-identical),
+                 §9.6 trajectory shape (4/4), §9.7 direction-of-change (3/3)
 
 Phase A:   _cycleMinRaw scoping          — commit [SHA_A]
 Phase B:   4-phase decomposition         — commit [SHA_B]
 Phase C:   rest-phase integration        — commit [SHA_C]
 Close:     registry + tracker updates    — commit [SHA_close]
-Backfill:  S31 SHA backfill              — commit [SHA_backfill]
 
-Vector results:
-  G1 Ghost Town groomers:  sessionMR {actual} / target 2.6 ± 0.3
-  M2 Tier 2 moguls:        sessionMR {actual} / target 4.3 ± 0.3  ← S-001
-  P5 Tier 5 powder Sat:    sessionMR {actual} / target 5.5 ± 0.3
+Reference values (non-gating):
+  G1: pre 2.50  → post [actual]  (Δ [computed])
+  M2: pre 6.40  → post [actual]  (Δ [computed])
+  P5: pre 4.10  → post [actual]  (Δ [computed])
 
-Next: SessionA (LC6 State-of-the-Port audit), previously deferred.
+S29-PHY-031-CYCLEMIN-PHYSICS-GAP:  CLOSED
+S-001 (S26-SYSTEMATIC-MR-UNDERESTIMATION):  OPEN (per spec v1.1 §11)
+                                            annotation updated
+New tracker items added:
+  MR-CRITICAL-MOMENTS-BUDGET-TIGHTER
+  S31-OBSERVATION-WINNER-INVARIANCE
+
+Next: SessionA (LC6 State-of-the-Port audit) + MR-fidelity work arc.
 ```
 
 If S31 halts at any gate, Code reports gate failure per §5.3 protocol.
 
 ---
 
-## 13. Cardinal Rule #8 acknowledgment
+## 12. Cardinal Rule #8 acknowledgment
 
-S31 is a Cardinal-Rule-#8-active session. That means:
+S31 is a Cardinal-Rule-#8-active session. Modified for v1.1 framing:
 
-- Hand-computed verification vectors exist (spec §9 + this kickoff §9 / `S31_HANDCOMP_TRACE.md`) BEFORE any engine code is written
-- Every thermal engine function touched has test vectors with hand-computed expected values
-- Line-by-line calculation trace document accompanies the patch
-- No engine function is modified without the above
+- **Patch-correctness verification designed before code written.** Spec v1.1 §9.4–§9.7.
+- **Non-ski bit-identical regression** (§9.5) is a hard physics invariant; verifiable by byte comparison.
+- **Shape and direction gates** (§9.6–§9.7) verify the physics integrated correctly without requiring trusted MR reference values.
+- **Reference-value logging** (§9.8) records post-patch state for future fidelity work; NOT a gate.
 
-Per S30 spec §9.5 anti-fudge clause: if engine output diverges from hand-comp, the engine needs debugging, not the constants. Halt-and-escalate.
+Per spec v1.1 §9.9 anti-fudge clause: if any gate fails, the engine needs debugging, not the constants. Halt-and-escalate.
 
-**The user (Christian) has personally caught physics bugs multiple times by reading the per-phase sawtooth chart against intuition. If Phase A/B/C outputs look "wrong" at any checkpoint, escalate to user for field-intuition cross-check rather than assuming the numbers are correct just because tests pass.**
+**The user (Christian) reads per-phase sawtooth charts against field intuition. If post-patch outputs look "wrong" at any checkpoint even when gates pass, escalate for field-intuition cross-check rather than assuming the numbers are correct just because tests pass.**
 
 ---
 
-**END S31 KICKOFF.**
+**END S31 KICKOFF v1.1.**
