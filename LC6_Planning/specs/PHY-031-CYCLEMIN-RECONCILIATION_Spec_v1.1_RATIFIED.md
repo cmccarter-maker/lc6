@@ -1,8 +1,8 @@
 # PHY-031-CYCLEMIN-RECONCILIATION — Engine consumption of PHY-031 component cycle duration
 
 **Spec ID:** PHY-031-CYCLEMIN-RECONCILIATION
-**Version:** v1 DRAFT
-**Status:** DRAFT (authored S30, April 22, 2026). Ratification pending user acceptance of every physics OQ in §10 and every hand-comp vector in §9.
+**Version:** v1.1 RATIFIED
+**Status:** RATIFIED (original v1 ratified S30 2026-04-22; revised to v1.1 S31 pre-Phase-A 2026-04-23 per `S31_spec_v1.1_revision.md`).
 **Authoring session:** S30 (spec-authoring only; zero code, zero tests, zero engine touches)
 **Authority relationship:** PHY-031 v1 RATIFIED defines `cycleMin`; this spec defines how `calcIntermittentMoisture` consumes it.
 **Parent spec:** `LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md` (616 lines, S28-ratified, LOCKED — this spec does not revise any value within it)
@@ -18,6 +18,15 @@
 - **`OQ-*`** marks open questions that must resolve with user input before ratification.
 - **`LOCKED from PHY-031 v1 §X`** means the value is taken verbatim from the parent spec. This reconciliation spec does not alter any such value. If drafting surfaces a genuine error in a PHY-031 v1 value, halt and escalate; do not silently amend.
 - All numbered sections are binding. Unnumbered prose is explanatory.
+
+---
+
+## Version history
+
+| Version | Date | Session | Changes |
+|---|---|---|---|
+| v1 RATIFIED | 2026-04-22 | S30 | Original ratification. Hand-authored §9 verification vectors with synthesized gear values produced MR targets (G1 2.6, M2 4.3, P5 5.5) that were not DB-backed. §11 closure criterion for S-001 anchored to synthesized M2 target 4.3. |
+| v1.1 RATIFIED | 2026-04-23 | S31 (pre-Phase-A) | §9 re-authored as patch-correctness gate. §11 restructured: S31 lands reconciliation physics but does NOT close S-001. Removed: MR-target gate criteria anchored to synthesized or current-engine values. Added: structural audit gate, non-ski bit-identical regression (retained), per-cycle shape gates, direction-of-change gate, reference-value logging (non-gating). Rationale: current-engine MR values are not trusted references given open bug docket; closure criteria tied to patch correctness rather than absolute MR values. Preserves Cardinal Rule #1 by refusing to calibrate against values of unverified provenance. |
 
 ---
 
@@ -979,486 +988,136 @@ Specifically:
 
 ---
 
-## 9. Hand-computed verification vectors
-
-### 9.1 Purpose and tolerance regime
-
-These vectors are the regression anchors for the implementation session. Per Cardinal Rule #8, hand-computed verification must precede code application for changes to the thermal engine. The implementation session runs the engine with the inputs specified below, compares outputs to the expected values, and must close within tolerance before any patch lands.
-
-**Tolerance regime:**
-
-| Output quantity | Tolerance |
-|---|---|
-| `sessionMR` (final) | ±0.3 MR units |
-| `_perCycleMR[c]` (any cycle) | ±0.5 MR units |
-| `_totalFluidLoss` | ±10% |
-| Per-phase sweat rate (`_sweatPhaseG`) | ±15% |
-| Per-phase storage (`_phaseStorage`) | ±15% |
-| Layer buffer fill at session end | ±100 g or ±15% (whichever is larger) |
-| `totalCycles` | exact |
-| `cycleMinRaw`, `cycleMin` | exact |
+## 9. Implementation gate criteria (patch-correctness-based)
 
-**Why ±0.3 on sessionMR rather than tighter.** MR is a derived saturation-percent-based scalar whose primary sensitivity is layer buffer fill at session end. Buffer fill at the end of an 8.5-hour session integrates many small per-cycle effects; a 15% layer-buffer tolerance propagates to roughly 0.3–0.5 MR units for mid-range MR values. Tighter than 0.3 would require the implementation session to match internal primitive iteration details bit-for-bit, which is both unrealistic and undesired (Cardinal Rule #8 preserves physics intent, not bit-exactness).
+### 9.1 Purpose and framing
 
-**Simplified-analytical trace convention.** Each vector specifies full inputs, then traces three representative cycles (cycle 0 warmup, mid-morning pre-lunch, afternoon post-lunch) in detail plus full rest-phase traces. Cycles not explicitly traced are summarized via per-cycle MR array range. All primitive outputs (T_skin, sweat rate, storage, condensation mass) are expected values at the primitive's target convergence — the implementation session matches these within tolerance, not re-deriving iteration loops.
-
-### 9.2 Vector 1 — G1 Ghost Town groomers (low-gap endpoint)
-
-**Scenario:** Tuesday, 2026-11-10 (early-season weekday, Tier 1 fallthrough). Breckenridge, CO. 8.5-hour session 8:30 AM–5:00 PM. Expert snowboarder in cold-dry conditions. Low-gap endpoint (unsimulated fraction 38%) and thermal-stress minimum — expected lowest `sessionMR` of the three vectors.
-
-**Ambient conditions:**
-
-| Input | Value |
-|---|---|
-| `tempF` | 16°F (-8.9°C) |
-| `humidity` | 30% RH |
-| `windMph` | 5 mph (ambient) |
-| `precipProbability` | 0 |
-| `elevFt` | 9,600 ft (Breckenridge base) |
-| `dewPointC` | -12°C |
-
-**User biometrics:**
-
-| Input | Value |
-|---|---|
-| `sex` | male |
-| `weightLb` | 170 |
-| `bodyFatPct` | 18 |
-| `fitnessProfile` | { vo2max: 48, restingHR: 56 } |
-
-**Gear ensemble (4 layers):**
-
-| Slot | Product class | CLO | `im` | wicking | fiber | weight (g) | layer cap (g) |
-|---|---|---|---|---|---|---|---|
-| base | Merino 200gsm long-sleeve crew | 0.45 | 0.50 | 8 | wool | 220 | 66 |
-| mid | Patagonia R1 Air Hoody | 0.75 | 0.55 | 6 | synthetic | 320 | 19 |
-| insulative | Patagonia Nano Puff Hoody | 1.25 | 0.48 | 3 | synthetic (PrimaLoft Gold) | 310 | 19 |
-| shell | Arc'teryx Beta LT hardshell | 0.15 | 0.38 | 1 | synthetic (3L GORE-TEX) | 390 | 78 |
-
-**Ensemble totals:** `_totalCLO = 2.60`, `ensembleIm ≈ 0.089` (shell-gated series), `_bsa = 1.92 m²` (Du Bois), initial all layer buffers 0 g. System capacity = 182 g.
-
-**Session configuration:**
-
-| Input | Value |
-|---|---|
-| `activity` | `snowboarding` |
-| `snowTerrain` | `groomers` |
-| `durationHrs` | 8.5 |
-| sessionStart | 8:30 AM |
-| `lunch` | true |
-| `otherBreak` | true |
-
-**Structural parameters:**
-
-- `cycleMinRaw = 13 min`, `cycleMin = 16.25 min`, `totalCycles = 31` (per §2.2.1)
-- Phase durations per cycle: `line = 0`, `lift = 7`, `transition = 3`, `run = 3`
-- Tier 1 → `liftLineMin = 0` → line phase is skipped (implementation: skip sub-step loop when `liftLineMin === 0`)
-- Wall-clock schedule (approximate, 8:30 AM start, 16.25 min per cycle): cycle 0 ends 8:46, cycle 14 ends ~12:18 PM, lunch at 12:15 PM lands between cycles 13 and 14.
-- Lunch inserts after cycle 13 completes; otherBreak inserts after cycle ~22.
-
-#### 9.2.1 Cycle 0 trace (warmup cycle)
-
-`_hasWarmup = true` per engine lines 625–626; `_cycleMET` uses `_groomerMET = 5.0` for first ~5 cycles rather than full run-MET of 8.0.
-
-**Line phase (0 min, skipped).**
-
-**Lift phase (7 × 1-min substeps):**
-- EPOC seed: basal 1.5 MET, no prior run to inherit from
-- Per-minute `iterativeTSkin(coreTemp≈37.0°C, TambC=-8.9, Rtissue, Rclo=0.403, Ra≈0.05, bsa=1.92, 1.5, windMs=2.24, 30, 0.089, 18, 6, 0.1)` → T_skin converges to ~30.2°C
-- E_req ≈ 5 W at basal MET in cold → sweatGhr ≈ 0; per-minute `_sweatRateLift = 0.05 g/hr × (1/60)` ≈ 0 g per minute
-- Shivering activates by minute 5 at T_skin drift toward 29.5°C; boosts MET by ~15%
-- `_sweatLiftG ≈ 0.4 g` (session-insensible diffusive), `_liftCondensG ≈ 0.1 g`, `_liftExcessG = 0`
-- `_liftStorage ≈ -310 W·min` (cooling dominates)
-
-**Transition phase (3 × 1-min substeps):**
-- MET: 2.0 + lift-end EPOC residual ~0.2 = 2.2 MET
-- T_skin rises to ~30.7°C with elevated MET
-- `_sweatTransG ≈ 0.4 g`, `_transCondensG ≈ 0.05 g`
-- `_transStorage ≈ -55 W·min`
-
-**Run phase (single-step, 3 min, warmup MET=5.0):**
-- `_cycleSpeedWMs = 30 mph × 0.7 turnFactor × 0.447 = 9.4 m/s`
-- Run wind exposure: 5 + 30×0.7×0.5 = 15.5 mph effective = 6.9 m/s; _hcRun ≈ 25 W/m²·K
-- `iterativeTSkin(..., 5.0, 6.9, 30, 0.089, ...)` → T_skin ≈ 32.3°C
-- E_req ≈ 85 W → sweatGhr ≈ 170 g/hr
-- `_sweatRunG = 170 × 3/60 = 8.5 g`
-- `_runStorage = (+60 W) × 3 min = +180 W·min`
-
-**Cycle 0 totals:**
-- `_cycleProdG = 0.4 + 0.4 + 8.5 + insensible(10 × 13/60 = 2.17 g) = 11.5 g`
-- `_cycleStorage = -310 + -55 + 180 = -185 W·min` (net cooling)
-- `_cycleCondensG = 0.15 g`; condensation placement per engine weights, mostly at shell
-- Layer buffers after cycle 0: base 1 g, mid 2 g, insulative 3 g, shell 5 g (10 g total produced → partially drains + redistributes)
-
-**Expected `_perCycleMR[0] ≈ 0.2**
-
-#### 9.2.2 Cycle 13 trace (pre-lunch, wall-clock ~11:55 AM)
-
-By cycle 13, layer fills have accumulated: roughly 25 g base, 28 g mid, 50 g insulative, 30 g shell. Warmup cycles ended at c=5; cycle 13 runs at full MET=8.0.
-
-**Lift phase (7 min):**
-- EPOC seed from prev run-end (3 min ago, run at MET 8.0 → basal 1.5 = Δ6.5 MET): fast-tail `a_fast × exp(-3/1) ≈ 0.05 × a_fast`, slow-tail `a_slow × exp(-3/12) ≈ 0.78 × a_slow`
-- `_METstart_lift ≈ 1.5 + 0.78 × 2.8 ≈ 3.7 MET`, decaying to ~1.9 MET by lift-end
-- T_skin trajectory: starts warm ~33.0°C, cools to ~30.3°C by lift-end
-- Per-minute sweat production: EPOC residual early → ~60 g/hr minute 0, decaying to ~10 g/hr by minute 6
-- `_sweatLiftG ≈ 3.3 g`, `_liftCondensG ≈ 2.1 g` (wide thermal gradient, cold shell)
-- `_liftStorage ≈ -260 W·min`
-
-**Transition phase (3 min):**
-- MET: 2.0 + lift-end EPOC residual 0.4 = 2.4 MET
-- T_skin rises to ~30.9°C
-- `_sweatTransG ≈ 0.7 g`, `_transCondensG ≈ 0.2 g`
-- `_transStorage ≈ -25 W·min`
-
-**Run phase (3 min, full MET=8.0):**
-- Same wind calc as cycle 0 but MET higher
-- T_skin ≈ 33.4°C
-- E_req ≈ 195 W → sweatGhr ≈ 460 g/hr
-- `_sweatRunG = 460 × 3/60 = 23 g`
-- `_runStorage = +250 W·min`
-
-**Cycle 13 totals:**
-- `_cycleProdG = 3.3 + 0.7 + 23 + 2.17 = 29.2 g`
-- `_cycleStorage = -260 + -25 + 250 = -35 W·min` (barely net-cooling; full-MET run offsets lift loss)
-- `_cycleCondensG ≈ 2.5 g`
-- Moisture buffer advancement (`_cycleMinRaw = 13 min`):
-  - Washburn wicking retFrac = (1-0.7)^13 ≈ 1.6e-7 → full redistribution between mid/base
-  - Shell drain: `getDrainRate(16, 30, 5, 0.38, 2.6, 1.92) ≈ 195 g/hr × 13/60 × 0.4 outerFill = 17 g` (caps at shell buffer 30 g)
-  - After cycle 13: base 26 g, mid 30 g, insulative 55 g, shell 22 g (~133 g total ensemble fill / 182 g cap = 73% saturation)
-
-**Expected `_perCycleMR[13] ≈ 3.2**
-
-#### 9.2.3 Lunch rest (45 min, 12:15 PM–1:00 PM, shell-off)
-
-Inserted between cycle 13 and cycle 14. User removes shell jacket (draped over chair, drains separately) and helmet. Inner ensemble — base + mid + insulative — exposed to indoor air.
-
-**Entry state:**
-- base 26 g, mid 30 g, insulative 55 g, shell 22 g
-- T_skin ≈ 33.0°C (just finished a run)
-- coreTemp ≈ 37.1°C
-- EPOC at lunch entry: ~2 min since run-end → slow-tail ~80% intact
-
-**Lunch integration (45 × 1-min substeps):**
-- `_TambC_indoor = 20`, `_humidity_indoor = 40`, `_windMs_indoor = 0`
-- `_effectiveIm_lunch = imSeries(base=0.50, mid=0.55, insulative=0.48) ≈ 0.18` (3-layer without shell — much higher than 0.089 shell-gated)
-- `_Rclo_lunch = (0.45+0.75+1.25) × 0.155 = 0.38` (shell CLO 0.15 removed from series)
-- Per-minute: `iterativeTSkin(coreTemp≈37.1, 20, Rtissue, 0.38, Ra_indoor≈0.12, 1.92, 1.5, 0, 40, 0.18, 18, 6, 0.1)` → T_skin converges to ~33.5°C (warm indoor ambient + low MET)
-- E_req ≈ 40 W (modest; cool ambient despite warm skin) → sweatGhr ≈ 30 g/hr
-- `_sweatLunchG = 30 × 45/60 = 22.5 g` accumulated over 45 min (insensible + low-MET background)
-- Inner-layer drying (direct exposure, per-minute):
-  - base `getDrainRate(68, 40, 0, 0.50, 0.38, 1.92)` ≈ 240 g/hr × 1/60 × min(1, buf/cap) — applied per minute
-  - mid `getDrainRate(68, 40, 0, 0.55, 0.38, 1.92)` ≈ 265 g/hr per-minute
-  - insulative `getDrainRate(68, 40, 0, 0.48, 0.38, 1.92)` ≈ 230 g/hr per-minute
-  - These drain rates are ~5× higher than on-mountain due to indoor temperature + still air
-- Shell draped drain: `2 × getDrainRate(68, 40, 0, 0.38, 0, 1.92) ≈ 2 × 180 = 360 g/hr`, `× 45/60 × outerFill ≈ 12 g drained`; shell buffer goes from 22 g to ~10 g
-
-**After 45-min loop:**
-- base: 26 - ~18 = **8 g** (heavy drying)
-- mid: 30 - ~21 = **9 g**
-- insulative: 55 - ~18 = **37 g** (most of fill, less direct exposure per gradient distribution)
-- shell (off-body, reattached at end): 22 - 12 = **10 g**
-- `_totalFluidLoss += 22.5 + insensibleLunch(~7.5 g) + respLunch(~4 g) = 34 g`
-- `_cumStorageWmin += +100 W·min` (warm indoor, modest MET, net warming)
-- `_prevTskin = 33.5°C` carries to cycle 14 CIVD snapshot
-
-**Expected ensemble fill after lunch: ~64 g (35% saturation), down from 133 g (73%) pre-lunch.** This is the load-bearing drying event the spec exists to capture.
-
-**Expected MR output for lunch phase segment: ~1.1** (low — indoor, drying dominant)
-
-#### 9.2.4 Cycle 22 trace (afternoon mid-session, wall-clock ~3:00 PM, post-lunch, pre-otherBreak)
-
-By cycle 22, ensemble has re-accumulated since lunch reset. Expected fills: base 18 g, mid 21 g, insulative 45 g, shell 22 g (~106 g / 182 g = 58% saturation).
-
-Cycle 22 otherwise similar to cycle 13 pattern (full MET, EPOC chain active). Key values:
-- `_sweatLiftG ≈ 3.0 g`, `_liftStorage ≈ -270 W·min`
-- `_sweatTransG ≈ 0.6 g`, `_transStorage ≈ -25 W·min`
-- `_sweatRunG ≈ 22 g`, `_runStorage ≈ +245 W·min`
-- `_cycleProdG ≈ 27.8 g`
-- `_cycleStorage ≈ -50 W·min`
-
-**Expected `_perCycleMR[22] ≈ 2.4** (below pre-lunch peak due to lunch reset)
-
-#### 9.2.5 otherBreak rest (15 min, 2:30 PM, shell-on)
-
-Inserted at wall-clock 2:30 PM (approximately after cycle 20). User does not remove shell.
-
-**Entry state:**
-- Ensemble fill ~100 g (approximation; accumulated from lunch low to mid-afternoon)
-- Per cycle since lunch: +~10–15 g net fill after drying
-
-**otherBreak integration (15 × 1-min substeps):**
-- `_TambC_indoor = 20`, `_humidity_indoor = 40`, `_windMs_indoor = 0`
-- `_effectiveIm_break = ensembleIm = 0.089` (full ensemble unchanged)
-- MET: 1.8 (standing talking), minor EPOC residual
-- Per-minute T_skin ≈ 33.2°C (warm indoor, shell on slows evap)
-- `_sweatBreakG ≈ 5 g`
-- Shell drain on-body at indoor conditions: `getDrainRate(68, 40, 0, 0.38, 2.6, 1.92) ≈ 110 g/hr × 15/60 × outerFill ≈ 10 g drained`
-- Inner-layer drying via cascade+Washburn at indoor 15-min window: modest (shell still gates)
-
-**After 15-min loop:** Ensemble fill ~92 g (modest drop, roughly 10% reduction). Much smaller drying event than lunch — 15 min, shell-on.
-
-**Expected MR output for otherBreak phase segment: ~2.0**
-
-#### 9.2.6 G1 session aggregates (expected outputs)
-
-After all 31 cycles + lunch + otherBreak:
-
-| Output | Expected value | Tolerance |
-|---|---|---|
-| `totalCycles` | 31 | exact |
-| `cycleMinRaw` | 13 | exact |
-| `cycleMin` | 16.25 | exact |
-| `_totalFluidLoss` | ~780 g | ±10% (±78 g) |
-| `_cumStorageWmin` | ~-3,200 W·min | ±15% |
-| `sessionMR` | **2.6** | ±0.3 |
-| `_perCycleMR[0]` | 0.2 | ±0.5 |
-| `_perCycleMR[13]` (pre-lunch peak) | 3.2 | ±0.5 |
-| `_perCycleMR[14]` (post-lunch low) | 1.1 | ±0.5 |
-| `_perCycleMR[22]` | 2.4 | ±0.5 |
-| `_perCycleMR[30]` (session end) | 3.5 | ±0.5 |
-| Final base layer fill | ~30 g | ±15% |
-| Final mid layer fill | ~38 g | ±15% |
-| Final insulative layer fill | ~60 g | ±15% |
-| Final shell layer fill | ~30 g | ±15% |
-
-**Session MR 2.6 is the target.** Pre-reconciliation baseline (current S29 port with 31 × 10-min cycles, no rest physics) is expected to produce **MR ~1.5** at these same inputs — the 1.5→2.6 movement is the closure criterion for `S26-SYSTEMATIC-MR-UNDERESTIMATION` at a cold-dry scenario.
-
-**Calibration footnote on G1:** Ghost Town expert days frequently produce sustained high-speed descents (no crowds, no lift lines, expert charger effort). The spec computes at the ratified groomers intensity `moderate` (MET 5 per PHY-031 §3.1 + `_lc5Mets`). An elite charger on a Ghost Town day may operate at higher effective MET (6.5–7.0, closer to Compendium "vigorous downhill racing"), which would push sessionMR into the 3.0–3.5 range rather than 2.6. The 2.6 target reflects what the engine produces at ratified intensity; the higher field-experienced values are attributable to the ability/effort-tier gap flagged in PHY-031 v1 §14.1 as Model Refinement future work ("Ability-level multiplier on `runMin`; REST_FRACTION variability"). This spec does not close that gap; the 2.6 target and ±0.3 tolerance bracket hold against the ratified inputs.
-
-### 9.3 Vector 2 — M2 Tier 2 moguls (mid-gap reference)
-
-**Scenario:** Tuesday, 2026-02-03 (peak-season weekday, Tier 2 fallthrough). Breckenridge. 8.5-hour session 8:30 AM–5:00 PM. Moguls. This is the canonical S-001 Breckenridge diagnostic analog — the scenario anchoring `S26-SYSTEMATIC-MR-UNDERESTIMATION` closure.
-
-**Ambient conditions:**
-
-| Input | Value |
-|---|---|
-| `tempF` | 20°F (-6.7°C) |
-| `humidity` | 45% RH |
-| `windMph` | 8 mph |
-| `precipProbability` | 0 |
-| `elevFt` | 9,600 ft |
-| `dewPointC` | -8°C |
+The S30 draft of this section authored numeric sessionMR targets (G1 2.6, M2 4.3, P5 5.5) derived from analytical hand-comp against a synthesized gear ensemble. During S31 pre-Phase-A baseline capture, two problems surfaced:
 
-**Biometrics:** same as G1 (170 lb male, 18% BF, VO2max 48).
-**Gear ensemble:** same as G1 (base/mid/insulative/shell, CLO 2.60).
-**Session config:** same as G1 except `snowTerrain = 'moguls'`, `lunch = true`, `otherBreak = true`.
-
-**Structural parameters:**
-- `cycleMinRaw = 19 min`, `cycleMin = 23.75 min`, `totalCycles = 21` (per §2.2.2)
-- Phase durations: `line = 2`, `lift = 7`, `transition = 3`, `run = 7`
-- Lunch after cycle ~9 (wall-clock 12:15 PM), otherBreak after cycle ~14 (wall-clock 2:30 PM)
-- Mogul descent speed: 12 mph × turnFactor 0.5 = 6 mph effective speed-added
-
-**MET note:** moguls intensity is `very_high` per PHY-031 §3.1 → `_lc5Mets['very_high'] = 10`. Run phase MET is 10, not 8. Higher sweat rate per run.
-
-#### 9.3.1 Cycle 0 trace (warmup, mogul groomer MET)
-
-Warmup cycles ski groomers at MET 5.0 per engine convention. Cycle 0 through ~cycle 3 use groomerMET = 5.0; cycle 4+ use full MET 10.
-
-- Line phase (2 min): MET 1.5 basal (cycle 0, no prior EPOC), T_skin ≈ 30.0°C, `_sweatLineG ≈ 0.15 g`, `_lineStorage ≈ -85 W·min`
-- Lift phase (7 min): MET 1.5→basal, `_sweatLiftG ≈ 0.3 g`, `_liftStorage ≈ -330 W·min`
-- Transition (3 min): MET 2.0, `_sweatTransG ≈ 0.4 g`, `_transStorage ≈ -60 W·min`
-- Run (7 min warmup MET 5.0): run wind 8 + 12×0.5×0.5 = 11 mph, `_sweatRunG ≈ 25 g`, `_runStorage ≈ +350 W·min`
-- `_cycleProdG ≈ 29 g`; `_cycleStorage ≈ -125 W·min`
-
-**Expected `_perCycleMR[0] ≈ 0.3**
-
-#### 9.3.2 Cycle 9 trace (pre-lunch, full MET 10)
-
-By cycle 9, full mogul MET active. Layer fills accumulated: base ~35 g, mid ~42 g, insulative ~70 g, shell ~40 g (~187 g / 182 g cap = saturated; mid/insulative may overflow toward base).
-
-- Line phase (2 min): EPOC inherited from prev run (MET 10→basal Δ8.5), slow-tail strong; `_METstart_line ≈ 3.0`, decaying. T_skin ≈ 31.0°C. `_sweatLineG ≈ 0.8 g`, `_lineCondensG ≈ 0.4 g`, `_lineStorage ≈ -65 W·min`
-- Lift phase (7 min): continues EPOC decay from line-end (~2 min elapsed). `_METstart_lift ≈ 2.4`. T_skin drifts from 31.0 to 30.0°C. `_sweatLiftG ≈ 3.5 g`, `_liftCondensG ≈ 2.2 g`, `_liftStorage ≈ -280 W·min`
-- Transition (3 min): MET 2.0 + lift-end EPOC residual ~0.4 = 2.4 MET. `_sweatTransG ≈ 0.8 g`, `_transCondensG ≈ 0.25 g`, `_transStorage ≈ -35 W·min`
-- Run (7 min, MET 10): run wind 8 + 6×0.5 = 11 mph effective, high hcRun. T_skin ≈ 33.7°C. E_req ≈ 285 W → sweatGhr ≈ 720 g/hr. `_sweatRunG = 720 × 7/60 = 84 g`. `_runStorage = +520 W·min`.
-- `_cycleProdG ≈ 89 g + insensible(3.2 g) = 92 g`; `_cycleStorage ≈ +140 W·min` (mogul MET dominates cold loss)
-- Moisture buffer advancement (`_cycleMinRaw = 19 min`):
-  - Washburn wicking exponent 19 → near-complete equilibration
-  - Shell drain: `getDrainRate(20, 45, 8, 0.38, 2.6, 1.92) ≈ 170 g/hr × 19/60 × outerFill ≈ 40 g` drained (caps at shell)
-
-**Expected `_perCycleMR[9] ≈ 4.5** (high — moguls produce 4× G1's per-cycle sweat load, ensemble nearing saturation)
-
-#### 9.3.3 Lunch rest (45 min, shell-off)
-
-Entry ensemble fill: ~170 g (high, near-saturation). Post-lunch drying expected to reduce fills substantially given shell-off + indoor conditions.
-
-- `_sweatLunchG ≈ 25 g` (similar low-MET, accumulated 45 min)
-- Inner-layer drying (direct exposure, per-minute):
-  - base 240 g/hr × 45/60 × ~1 outerFill = 180 g drain capacity (exceeds buffer; drains base fully to ~8 g)
-  - mid 265 g/hr × 45/60 × ~1 = 200 g drain capacity (drains mid to ~9 g)
-  - insulative 230 g/hr × 45/60 × 0.9 = 155 g drain capacity (drains insulative from ~90 g toward ~40 g)
-- Shell draped drain: 360 g/hr × 45/60 × ~0.5 = 135 g drain capacity (drains shell from ~60 g to ~12 g)
-
-**Expected ensemble fill after lunch: ~70 g (38% saturation), down from ~170 g (93%) pre-lunch.** Major reset.
+1. **Gear ensemble problem.** The §9.2 gear specification hand-typed per-layer CLO/im/cap values rather than binding to real gear-DB entries. Observed engine output against real DB ensembles (strategy-engine-selected optimal_gear) produced sessionMR values far outside the synthesized targets.
 
-**Expected MR for lunch segment: ~1.3**
+2. **Reference-value problem.** Even with real gear, "current engine output" is not a trusted physics reference. LC6 has multiple open tracker items affecting MR (ongoing fidelity work tracked in `LC6_Master_Tracking.md`). Anchoring closure criteria to observed current-engine values implicitly calibrates new gates to an unverified physics stack — the same pattern S15 flagged as "calibrating to ghosts."
 
-#### 9.3.4 Cycle 14 trace (post-lunch afternoon)
+This revision decouples the implementation-session gate from absolute sessionMR values. The gate tests whether the **patch itself** is correct — whether the 4-phase loop landed, whether rest phases integrate at wall-clock, whether non-ski activities are untouched, whether the per-cycle trajectory shape matches expectation. Absolute MR values are recorded as reference points for future work, not as pass/fail conditions.
 
-Ensemble has re-accumulated since lunch; cycle 14 at ~2:20 PM, just before otherBreak. Expected fills: base 25 g, mid 30 g, insulative 55 g, shell 35 g.
+This is an honest scope given LC6's current physics-fidelity state. S31 ships the reconciliation cleanly; broader MR-trustworthiness is a multi-session arc.
 
-Values similar to cycle 9 pattern but slightly lower fill state due to lunch reset. Key:
-- `_sweatLiftG ≈ 3.3 g`, `_sweatRunG ≈ 80 g`
-- `_cycleStorage ≈ +130 W·min`
-- `_cycleProdG ≈ 88 g`
+### 9.2 Verification ensembles
 
-**Expected `_perCycleMR[14] ≈ 3.6**
+Three vectors defined by ambient conditions + terrain (unchanged from v1):
 
-#### 9.3.5 otherBreak rest (15 min, shell-on)
+**Vector G1 (Ghost Town groomers):** 16°F (-8.9°C), 30% RH, 5 mph wind, no precip, 9,600 ft, dewPointC -12, Tier 1 crowd, Tuesday 2026-11-10, snowboarding moguls=false groomers=true, 8.5-hr session, lunch=true, otherBreak=true.
 
-Entry fill ~145 g. otherBreak drying ~12 g drop. Exit fill ~133 g.
+**Vector M2 (Tier 2 moguls):** 20°F (-6.7°C), 45% RH, 8 mph wind, no precip, 9,600 ft, dewPointC -8, Tier 2 crowd, mid-week 2026-02-03, snowboarding moguls, 8.5-hr session, lunch=true, otherBreak=true.
 
-**Expected MR for otherBreak segment: ~3.1**
+**Vector P5 (Tier 5 powder Saturday):** 18°F (-7.8°C), 80% RH, 3 mph wind, precip probability 0.70 (ongoing snow), 9,600 ft, dewPointC -9, Tier 5 crowd (Saturday + powder bump), 2026-02-07, snowboarding moguls, 8.5-hr session, lunch=true, otherBreak=true.
 
-#### 9.3.6 M2 session aggregates (expected outputs)
+**Ensemble sourcing (revised):** all three vectors run against the ensemble returned by `four_pill.optimal_gear` from `evaluate()` at the current HEAD. This is a real-DB-backed ensemble selected by the strategy engine, reproducible by invocation. No hand-typed per-layer values. The specific product IDs selected by the strategy engine may drift as the strategy engine evolves; this spec does not pin product IDs — it pins the invocation ("use whatever optimal_gear the strategy engine selects at run time").
 
-| Output | Expected value | Tolerance |
-|---|---|---|
-| `totalCycles` | 21 | exact |
-| `cycleMinRaw` | 19 | exact |
-| `cycleMin` | 23.75 | exact |
-| `_totalFluidLoss` | ~2,100 g | ±10% |
-| `_cumStorageWmin` | ~+500 W·min | ±15% |
-| `sessionMR` | **4.3** | ±0.3 |
-| `_perCycleMR[0]` | 0.3 | ±0.5 |
-| `_perCycleMR[9]` (pre-lunch peak) | 4.5 | ±0.5 |
-| `_perCycleMR[10]` (post-lunch low) | 1.3 | ±0.5 |
-| `_perCycleMR[14]` | 3.6 | ±0.5 |
-| `_perCycleMR[20]` (session end) | 5.0 | ±0.5 |
-| Final base layer fill | ~50 g | ±15% |
-| Final mid layer fill | ~18 g | ±15% |
-| Final insulative layer fill | ~18 g | ±15% |
-| Final shell layer fill | ~60 g | ±15% |
+Biometrics (unchanged): male, 170 lb, 77.1 kg, BSA 1.92 m², body fat 18%, VO2max 48.
 
-**Session MR 4.3 is the S-001 closure target.** Pre-reconciliation engine (S29 baseline) produces MR ~1.5 at these inputs. Post-reconciliation MR ~4.3 lands the scenario in the expected "yellow pacing" tier (3–5 MR range per canonical LC5 PHY-031 §13.7 diagnostic).
+### 9.3 Pre-Phase-A baselines (reference values, non-gating)
 
-### 9.4 Vector 3 — P5 Tier 5 powder Saturday (high-gap endpoint)
+Captured at HEAD `78cd56a` (S29-followup state, pre-S31 engine changes) by the probe test at `packages/engine/tests/probes/s31_ensemble_probe.test.ts`:
 
-**Scenario:** Saturday, 2026-01-17 (peak-season Saturday baseline Tier 4 Busy; powder flag → Tier 5 Packed per PHY-031 §7.2). Breckenridge. 8.5-hour session. Moguls terrain. Powder day, ongoing light snow, high humidity. High-gap endpoint (ghosted fraction 61%) and thermal-stress extreme — long lift lines with cold-wet ambient, heavy sweat on powder mogul descents.
+| Vector | optimal_gear sessionMR | Ensemble totalCLO | Ensemble im |
+|---|---|---|---|
+| G1 | 2.50 | 4.42 | 0.254 |
+| M2 | 6.40 | 4.42 | 0.254 |
+| P5 | 4.10 | 4.42 | 0.254 |
 
-**Ambient conditions:**
+**These values are reference points for future work, not S31 gate targets.** Their primary purpose is delta attribution: once S31 lands, engine output at new HEAD is compared to these baselines to confirm the patch produced change in the expected direction and relative magnitude (see §9.6).
 
-| Input | Value |
-|---|---|
-| `tempF` | 18°F (-7.8°C) |
-| `humidity` | 80% RH |
-| `windMph` | 3 mph |
-| `precipProbability` | 0.70 (ongoing snow) |
-| `elevFt` | 9,600 ft |
-| `dewPointC` | -9°C |
+Note: strategy engine selected `candidate-5` as optimal winner for all three vectors in the probe. Winner-selection scenario-sensitivity is flagged for post-S31 investigation (tracker item `S31-OBSERVATION-WINNER-INVARIANCE`) but does not block S31.
 
-**Biometrics:** same as G1.
-**Gear ensemble:** same as G1.
-**Session config:** same as G1 except `snowTerrain = 'moguls'`, date → Tier 5 Packed via powder bump.
+### 9.4 Implementation-session gate: structural audit
 
-**Structural parameters:**
-- `cycleMinRaw = 32 min`, `cycleMin = 40 min`, `totalCycles = 12` (per §2.2.3)
-- Phase durations: `line = 15`, `lift = 7`, `transition = 3`, `run = 7`
-- Lunch after cycle 5 (wall-clock 12:10 PM, within window), otherBreak after cycle ~8 (2:30 PM)
-- Precip wetting active — cycle-scale precipWettingRate × (`_cycleMinRaw` / 60) per §4.6
+The patch is structurally correct when all of the following are verifiable by code review against `calc_intermittent_moisture.ts`:
 
-#### 9.4.1 Cycle 0 trace (warmup)
+1. **4-phase cycle loop lands in declared order** (line → lift → transition → run), per spec §4.2. Verified by reading the phase-loop body of `calc_intermittent_moisture.ts` and confirming the four phases appear in wall-clock order.
 
-Same pattern as M2 cycle 0 but with extended line phase. Warmup MET 5.0.
+2. **Per-phase MET values match spec §5.2.** Line uses LINE_MET=1.8 (Ainsworth 20030), transition uses TRANSITION_MET=2.0 (Ainsworth 05160), lift uses existing `_METlift`=1.5, run uses `_cycleMET` from `_lc5Mets`. Constants appear in `phy031_constants.ts` (or inlined with citation).
 
-- Line phase (15 min): long stationary exposure, MET basal 1.5 cycle 0. T_skin drifts 30.0 → 29.5°C. Shivering activates minutes 8+. `_sweatLineG ≈ 0.5 g` (diffusive), `_lineCondensG ≈ 0.8 g` (wide gradient over long duration), `_lineStorage ≈ -580 W·min` (deep cooling)
-- Lift phase (7 min): continues basal + shiver. T_skin ~29.7°C. `_sweatLiftG ≈ 0.4 g`, `_liftStorage ≈ -340 W·min`
-- Transition (3 min): MET 2.0. Small recovery. `_sweatTransG ≈ 0.4 g`, `_transStorage ≈ -70 W·min`
-- Run (7 min, MET 5 warmup): `_sweatRunG ≈ 25 g`, `_runStorage ≈ +340 W·min`
-- Precip wetting over `_cycleMinRaw = 32 min`: `precipWettingRate(0.70, 18, _swr) × 32/60` → ~8 g added to shell boundary
-- `_cycleProdG ≈ 28 g; shell precip +8 g`
-- `_cycleStorage ≈ -650 W·min` (heavy cooling from long cold line)
+3. **EPOC continuity chain connects phases.** Cross-phase state variable `_prevRunEndMET` carries from run-end of cycle `c-1` into line-start of cycle `c`. Within cycle `c`, each phase's EPOC seed inherits from the prior phase's end MET. Verified by reading the EPOC computation at each phase boundary.
 
-**Expected `_perCycleMR[0] ≈ 0.4**
+4. **Tier 1 line-phase skip is present.** When `_liftLineMin === 0`, the line sub-step loop is skipped entirely (not iterated with zero iterations — actually skipped for efficiency and for verification that Tier 1 behavior is unchanged except via other reconciliation effects).
 
-#### 9.4.2 Cycle 5 trace (pre-lunch, full MET)
+5. **`_cycleMinRaw` accumulator scoping correct.** Verify by grep that `_respRun.moistureGhr`, insensible perspiration, Washburn wicking, shell drain, ambient vapor absorption, and precipitation wetting all scope to `_cycleMinRaw`, not `_runMin + _liftMin`. Per spec §4.6.
 
-By cycle 5, full mogul MET active. Layer fills accumulated plus precip wetting: base ~30 g, mid ~35 g, insulative ~65 g, shell ~50 g (heavy from condensation + precip). Total ~180 g ≈ 99% saturation.
+6. **Rest-phase integration inserted at wall-clock.** When `cycleOverride.lunch === true` and session duration crosses 12:15 PM: lunch rest (45 min, shell-off, `im_series` of base+mid+insulative=0.18, `Rclo_shellOff`=0.380, indoor 20°C/40%/0 m/s per ASHRAE 55) fires between the appropriate cycles. Same for `cycleOverride.otherBreak === true` at 2:30 PM (15 min, shell-on, existing ensembleIm, 15-min shorter window).
 
-- Line phase (15 min): EPOC from prev run (slow-tail strong at start, fully decayed by minute 10+). T_skin drifts 31 → 29.8°C. `_sweatLineG ≈ 3.5 g` (EPOC residual early) + `_lineCondensG ≈ 4.5 g` (very wide gradient, cold wet ambient). `_lineStorage ≈ -480 W·min`
-- Lift phase (7 min): MET continues decay. `_sweatLiftG ≈ 2.5 g`, `_liftCondensG ≈ 2.0 g`, `_liftStorage ≈ -270 W·min`
-- Transition (3 min): MET 2.0. `_sweatTransG ≈ 0.7 g`, `_transStorage ≈ -35 W·min`
-- Run (7 min, MET 10 moguls, powder deep): run wind 3 + 6×0.5 = 6 mph effective — lower than G1/M2 due to powder conditions + lower base wind. T_skin ≈ 33.5°C. `_sweatRunG ≈ 82 g`, `_runStorage ≈ +510 W·min`
-- Precip wetting +8 g shell
-- `_cycleProdG ≈ 91 g + 3.2 insensible + precip 8 = 102 g`
-- `_cycleStorage ≈ -275 W·min` (cold line + lift overwhelms run warming — the P5 signature)
+7. **CycleOverride interface extension.** `lunch?: boolean` and `otherBreak?: boolean` fields appear on the `CycleOverride` interface at `calc_intermittent_moisture.ts:202-214`. No change to the `calcIntermittentMoisture` function signature (Cardinal Rule #8 preservation).
 
-**Expected `_perCycleMR[5] ≈ 5.8** (very high; ensemble saturated, long cold exposures)
+8. **evaluate.ts wiring.** `evaluate.ts:computeResortCycleOverride` passes the two booleans through. Default values computed via a helper — `true` when `durationHrs > 5`, else `false`.
 
-#### 9.4.3 Lunch rest (45 min, shell-off)
+**Gate criterion:** all 8 structural items verified by code review. Any missing item halts.
 
-Entry fill ~190 g (over capacity; overflow to base). Lunch resets substantially.
+### 9.5 Implementation-session gate: non-ski regression (retained from v1)
 
-- Shell-off indoor drying: same pattern as G1/M2
-- Expected post-lunch ensemble fill ~85 g (47% saturation)
+For each of the 11 activities listed below, the patch must produce **bit-identical output** vs pre-patch baseline at HEAD `78cd56a`:
 
-**Expected MR for lunch segment: ~1.5**
+`day_hike`, `backpacking`, `running`, `mountain_biking`, `trail_running`, `bouldering`, `camping`, `fishing`, `kayaking_lake`, `cycling_road_flat`, `snowshoeing`.
 
-#### 9.4.4 Cycle 8 trace (post-lunch)
+For each activity, bit-identical means `sessionMR`, `totalFluidLoss`, `_cumStorageWmin`, and final layer buffer fills (base, mid, insulative, shell) are equal to the pre-patch baseline captured in `S31_PRE_PATCH_BASELINE.md` to full floating-point precision.
 
-Ensemble re-accumulating. Precip still active. Cycle 8 at ~2:10 PM, shortly before otherBreak.
+**Rationale:** the `_cycleMinRaw` scoping correction is a no-op for these activities (their `_runMin + _liftMin` already equals full cycle duration, having no line or transition phase). Any observed divergence indicates the patch leaked into code paths outside the ski cyclic loop and must halt for investigation.
 
-- `_sweatRunG ≈ 80 g` (slightly less than pre-lunch peak due to drier layers at cycle start)
-- `_cycleStorage ≈ -260 W·min`
-- `_cycleProdG ≈ 98 g`
+**Gate criterion:** all 11 activities bit-identical. Any single byte-level divergence halts.
 
-**Expected `_perCycleMR[8] ≈ 4.8**
+### 9.6 Implementation-session gate: per-cycle trajectory shape
 
-#### 9.4.5 otherBreak (shell-on)
+Post-patch engine output for G1/M2/P5 is checked for expected *shape patterns* rather than absolute MR values:
 
-Entry fill ~160 g. otherBreak drying modest (~15 g drop). Exit ~145 g.
+1. **Lunch reset dip is visible.** Per-cycle MR array shows a downward dip at the cycle where lunch fires (approximately cycle 13 G1, cycle 9 M2, cycle 5 P5, depending on exact wall-clock timing per §6.5). Dip magnitude is at least 0.5 MR below the pre-lunch peak — confirms lunch integration fires and impacts state.
 
-**Expected MR for otherBreak segment: ~4.0**
+2. **Post-lunch re-climb occurs.** Cycles after lunch show a renewed climb in MR — confirms state integration continued after the rest phase rather than ending the trajectory early.
 
-#### 9.4.6 P5 session aggregates (expected outputs)
+3. **Line-phase accumulation visible in P5.** P5's per-cycle MR trajectory shows measurably higher per-cycle MR than G1's at equivalent cycle indices (or equivalent wall-clock times if cycle counts differ) — confirms the 15-min line phase adds cold-exposure load that G1 (line=0) does not experience.
 
-| Output | Expected value | Tolerance |
-|---|---|---|
-| `totalCycles` | 12 | exact |
-| `cycleMinRaw` | 32 | exact |
-| `cycleMin` | 40.00 | exact |
-| `_totalFluidLoss` | ~1,650 g | ±10% |
-| `_cumStorageWmin` | ~-2,400 W·min | ±15% |
-| `sessionMR` | **5.5** | ±0.3 |
-| `_perCycleMR[0]` | 0.4 | ±0.5 |
-| `_perCycleMR[5]` (pre-lunch peak) | 5.8 | ±0.5 |
-| `_perCycleMR[6]` (post-lunch low) | 1.5 | ±0.5 |
-| `_perCycleMR[8]` | 4.8 | ±0.5 |
-| `_perCycleMR[11]` (session end) | 6.2 | ±0.5 |
-| Final base layer fill | ~66 g (at cap) | ±15% |
-| Final mid layer fill | ~19 g (at cap) | ±15% |
-| Final insulative layer fill | ~19 g (at cap) | ±15% |
-| Final shell layer fill | ~75 g | ±15% |
+4. **EPOC continuity present.** First-minute MET in each cycle's line phase (cycles c>0) exceeds the line baseline 1.8 MET, showing EPOC inheritance from prior run. Verified by logging `_METstart_line` for cycles 1, 5, 10 of each vector.
 
-**Session MR 5.5 is the high-gap target.** Pre-reconciliation baseline produces MR ~2.5 at these inputs. MR 5.5 lands the scenario firmly in "orange — take a lodge break" tier (5–7 MR per canonical tier mapping).
+**Gate criterion:** all 4 shape patterns observed. Missing any indicates reconciliation physics didn't land as designed.
 
-### 9.5 Vector summary and implementation-session gate
+### 9.7 Implementation-session gate: direction-of-change
 
-The three vectors span the §3 taxonomy endpoints and establish a monotonic sessionMR progression:
+Post-patch sessionMR compared to §9.3 pre-Phase-A baselines:
 
-| Vector | Tier | cycleMin | cycles | sessionMR target | Pre-reconciliation baseline | Delta |
-|---|---|---|---|---|---|---|
-| G1 | 1 (Ghost Town) | 16.25 | 31 | **2.6** | ~1.5 | +1.1 |
-| M2 | 2 (Quiet) | 23.75 | 21 | **4.3** | ~1.5 | +2.8 |
-| P5 | 5 (Packed) | 40.00 | 12 | **5.5** | ~2.5 | +3.0 |
+1. **P5 changes more than G1 in absolute magnitude.** Because P5 has a 15-min line phase and G1 has 0-min line phase, reconciliation effects compound more in P5. `|ΔP5| > |ΔG1|` is the physics-required ordering.
 
-The sessionMR deltas grow with the cycleMin gap, consistent with the physical intuition that reconciliation effects compound in scenarios where more wall-clock time was previously ghosted. G1's +1.1 delta is driven mostly by lunch drying reset + rest simulation. M2 and P5 add substantial line-phase and transition-phase thermal loss accumulation — in P5, the 15-min line phases accumulate real cold-exposure damage that pre-reconciliation simply skipped.
+2. **G1 direction is modest (|ΔG1| < 1.0 MR).** G1 is Tier 1, line=0, minimal new cold-exposure accumulation. Dominant effects are small (`_cycleMinRaw` respiratory scaling, insensible scope extension, lunch reset). Large G1 delta signals something unintended.
 
-**Implementation-session gate:**
+3. **At least one vector moves.** If sessionMR is unchanged across all three vectors, the reconciliation physics did not meaningfully integrate. Halt.
 
-The implementation session cannot land its patch until:
+**Gate criterion:** all 3 direction constraints satisfied. This is a coarse gate — it does NOT require specific MR values, only that the shape of change matches physics expectation.
 
-1. Engine run under Vector 1 inputs produces `sessionMR ∈ [2.3, 2.9]`
-2. Engine run under Vector 2 inputs produces `sessionMR ∈ [4.0, 4.6]`
-3. Engine run under Vector 3 inputs produces `sessionMR ∈ [5.2, 5.8]`
-4. Per-cycle MR arrays for each vector match the traced values within ±0.5 MR at the explicitly-traced cycles
-5. `_totalFluidLoss` values within ±10% of expected for each vector
-6. Layer buffer fills at session end within ±15% for each vector
-7. Pre-patch regression run (engine at commit `29e0b30` with Vector inputs) produces the "pre-reconciliation baseline" MRs above, confirming the delta attribution
-8. Non-ski activity regression: for each of `day_hike`, `backpacking`, `running`, `mountain_biking`, `trail_running`, `bouldering`, `camping`, `fishing`, `kayaking_lake`, `cycling_road_flat` and `snowshoeing`, engine output (`sessionMR`, `_totalFluidLoss`, final layer buffer fills) must match pre-patch baseline to bit-identical accuracy. Per §8.4 the `_cycleMinRaw` scoping correction should be a no-op for these activities; any deviation indicates the patch changed behavior outside the ski scope and must halt for investigation.
+### 9.8 Reference-value logging (non-gating)
 
-If any vector or non-ski regression fails to converge within tolerance, the implementation session halts and escalates rather than adjusting constants to fit — the physics is what it is, and adjusted numbers that match the expected values by parameter-gaming violate Cardinal Rule #1.
+After all four gates (§9.4, §9.5, §9.6, §9.7) pass, the following values are captured to `LC6_Planning/baselines/S31_POST_PATCH_BASELINE.md` as reference points for future work:
+
+| Vector | Pre-Phase-A sessionMR | Post-patch sessionMR | Δ |
+|---|---|---|---|
+| G1 | 2.50 | [captured] | [computed] |
+| M2 | 6.40 | [captured] | [computed] |
+| P5 | 4.10 | [captured] | [computed] |
+
+Plus full `perCycleMR` arrays, final layer buffer fills, `_totalFluidLoss`, `_cumStorageWmin` for each vector.
+
+**These values are NOT gate criteria.** They are reference points for:
+
+- Comparing against future MR-fidelity work as other open bugs resolve
+- Detecting regressions in subsequent sessions that inadvertently re-touch the reconciled code
+- Feeding the `S29-MATRIX-PENDING` re-author session with verified post-S31 observed values
+
+### 9.9 Halt-and-escalate protocol (unchanged philosophy, revised triggers)
+
+The implementation session halts and escalates rather than tuning constants when:
+
+- Any §9.4 structural audit item is missing or incorrect
+- Any §9.5 non-ski activity diverges bit-identically
+- Any §9.6 shape pattern is absent post-patch
+- Any §9.7 direction-of-change constraint is violated
+
+The physics is what it is. The patch either landed or it didn't. If it didn't, the fix is to read the code and find the mistake — not adjust per-phase MET, not retune EPOC parameters, not scale constants to hit target values. Per Cardinal Rule #1.
 
 ---
 
@@ -1508,34 +1167,43 @@ Additional tracker entry from S30 spec drafting (non-audit):
 
 ---
 
-## 11. S-001 regression close criteria
+## 11. S-001 tracker annotation
 
-### 11.1 The regression in plain terms
+### 11.1 S-001 status after S31
 
-`S26-SYSTEMATIC-MR-UNDERESTIMATION` is the longest-standing open HIGH tracker item in LC6. It was opened in S26 when user field reports repeatedly showed that perceived moisture-risk readings felt "consistently too low" — 3-5 hour real-world saturation timescales that the engine reported as 15-20 hours to reach comparable MR levels. S27 traced the root cause to PHY-031 port incompleteness (calendar model, tier system, rest time, line time all missing). S28 authored the LC6 PHY-031 spec. S29 ported the calendar model. S29-PHY-031-CYCLEMIN-PHYSICS-GAP then identified that even with the correct cycle count, the engine was simulating only run+lift duration per cycle — the rest of the wall-clock time (~50% on P5 scenarios) was ghosted. This spec authorizes the physics that closes that gap.
+`S26-SYSTEMATIC-MR-UNDERESTIMATION` (tracker alias S-001) is the longest-standing open HIGH tracker item in LC6. It was opened when user field reports indicated perceived moisture-risk readings felt "consistently too low." S27 traced the root cause partially to PHY-031 port incompleteness. S28 authored the PHY-031 spec. S29 ported the calendar/tier/cycle-count infrastructure. S30 authored this spec to close the remaining physics gap: the engine was simulating only run+lift duration per cycle, ghosting the rest of wall-clock time.
 
-### 11.2 Specific close criteria for S-001
+**S31 lands the reconciliation physics authorized by this spec (§4–§6). S31 does NOT close S-001.**
 
-The canonical S-001 Breckenridge diagnostic scenario maps closely to Vector 2 (M2) in §9.3 above: Tier 2 moguls, 20°F moderate-cold, 45% RH, Breckenridge 9,600 ft, 8.5-hour full day. Per §9.3.6, post-reconciliation sessionMR target is **4.3 ± 0.3**, against pre-reconciliation baseline of ~1.5.
+The original §11 (v1) tied S-001 closure to specific M2 sessionMR values anchored to synthesized gear. Revisions to §9 for v1.1 acknowledged that absolute MR targets cannot be credibly authored against the current engine state, because current MR values themselves are affected by ongoing physics-fidelity work beyond just the cycleMin reconciliation gap. Closing S-001 against a specific MR value would calibrate closure to an unverified physics stack.
 
-`S26-SYSTEMATIC-MR-UNDERESTIMATION` is **formally closed** when all three of the following are true:
+### 11.2 Updated S-001 tracker annotation
 
-1. **Vector 2 (M2) acceptance:** engine run at M2 inputs produces `sessionMR ∈ [4.0, 4.6]` per §9.5 criterion 2
-2. **Per-cycle trajectory:** per-cycle MR array for M2 shows the lunch reset dip (~MR 1.3 at post-lunch low) and afternoon re-climb (~MR 5.0 at session end), matching the §9.3 trace within ±0.5
-3. **Field-validated tier mapping:** sessionMR 4.3 maps to "yellow pacing" tier (3–5 MR) per canonical LC5 tier bands — the canonical field-intuition bucket for "significant sweat, afternoon uncomfortable, manageable with vent events and pacing"
+Post-S31, the S-001 tracker entry in `LC6_Master_Tracking.md` carries the following annotation:
 
-If any of the three fails, `S26-SYSTEMATIC-MR-UNDERESTIMATION` stays open and the implementation session produces a debug trace explaining the mismatch. Do not close `S26` based on Vector 1 or Vector 3 alone — they are broader verification, not the canonical S-001 anchor.
+> **S-001 status as of S31:** PHY-031-CYCLEMIN-RECONCILIATION v1.1 physics landed (S31 commit [SHA], branch session-13-phy-humid-v2). Per-cycle physics now integrates line + lift + transition + run phases with rest-phase (lunch, otherBreak) integration at wall-clock. `_cycleMinRaw` accumulator scoping corrected. Non-ski activities bit-identical regression verified. Per-cycle trajectory shape gates passed.
+>
+> **S-001 remains open pending broader MR-fidelity work.** Reconciliation addresses the phase-loop ghosting identified in S29-PHY-031-CYCLEMIN-PHYSICS-GAP but does not independently validate that post-reconciliation MR values represent trusted physics. Full closure requires resolution of ongoing physics-fidelity tracker items (consult `LC6_Master_Tracking.md` for current docket) and field cross-checks against user experience.
 
-### 11.3 What closing S-001 does not prove
+### 11.3 What S31 closure DOES close
 
-- Does **not** prove the engine is correct under all possible inputs. It proves the engine matches the M2 trace under M2 inputs. Other scenarios may surface further calibration needs (particularly around the G1 elite-charger calibration gap named in §9.2.6, and the ability/effort-tier Model Refinement from PHY-031 v1 §14.1).
-- Does **not** close `OQ-S30-PHYSICS-3` through `OQ-S30-PHYSICS-8` — those are independently resolved above.
-- Does **not** close `MR-PHY-031-CONDENSATION-PER-PHASE` or `MR-PHY-031-DRAPED-SHELL-DRAIN`. Those are forward-flagged for LC7 Model Refinement.
-- Does **not** resolve the five §8.5 audit-query tracker items. Those flow to future sessions.
+- `S29-PHY-031-CYCLEMIN-PHYSICS-GAP` (status HIGH → CLOSED: reconciliation physics landed)
+- PHY-031 registry row reality-status: PARTIAL → ACTIVE
+- PHY-031-CYCLEMIN-RECONCILIATION v1.1 registry row engine column: DRAFT → ACTIVE
+- Phase-loop scope-expansion risk at line 487 (ventEvents passed as null): not addressed by S31, stays TODO for separate future session per the explicit S31 non-goal
 
-### 11.4 Post-close monitoring
+### 11.4 What S31 closure does NOT close
 
-Even after `S26-SYSTEMATIC-MR-UNDERESTIMATION` closes, the user's per-session MR output should be cross-checked against field experience for at least the first 10 real-world ski sessions post-implementation. Persistent systematic over- or under-estimation on specific scenario classes (e.g., powder days consistently too low, bluebird days consistently too high) indicates the reconciliation landed correctly on the averaged case but has calibration gaps on sub-populations — those become new tracker items, not re-openers of S-001.
+- **S-001** (`S26-SYSTEMATIC-MR-UNDERESTIMATION`): stays open with annotation above
+- `S29-MATRIX-PENDING` re-author: post-S31, with verified fixtures + observed values from §9.8 reference log
+- `S30-AUDIT-*` tracker items (5 audit-queries): flow to future sessions
+- `MR-PHY-031-CONDENSATION-PER-PHASE`, `MR-PHY-031-DRAPED-SHELL-DRAIN`: LC7 Model Refinement
+- `MR-CRITICAL-MOMENTS-BUDGET-TIGHTER` (new, S31-sourced): 3-5 strategy windows / ≤3 CMs may need tightening; revisit after precognition/pacing loop closes
+- `S31-OBSERVATION-WINNER-INVARIANCE` (new, S31-sourced): strategy engine selects same optimal winner across G1/M2/P5 despite different ambient; investigate post-S31
+
+### 11.5 Post-S31 field cross-check protocol
+
+Even without S-001 closure, post-S31 engine output should be cross-checked against user field experience for the first 10 real-world ski sessions. Systematic over- or under-estimation on specific scenario classes become new tracker items informing the broader MR-fidelity work, not re-openers of S29-PHY-031-CYCLEMIN-PHYSICS-GAP (which IS closed by S31).
 
 ---
 
