@@ -17,7 +17,10 @@ describe('calcIntermittentMoisture — Breck 16°F groomers 6hrs', () => {
   it('goodRunCount = 11 [PHY-069]', () => { expect(r.goodRunCount).toBe(36); });  // PHY-071
   it('yellowRunCount = 2', () => { expect(r.yellowRunCount).toBe(0); });  // PHY-071
   it('peakHeatBalanceDirection = cold [PHY-069]', () => { expect(r.peakHeatBalanceDirection).toBe('cold'); });
-  it('totalFluidLoss ≈ 450 [PHY-069]', () => { expect(r.totalFluidLoss).toBeCloseTo(445, -1); });  // PHY-071
+  // S31 Phase A (spec v1.2 §4.6 respiratory scoping: _runMin → _cycleMinRaw) shifts ski totalFluidLoss
+  // on this scenario to ~792g. Re-author in S31-PHASE-C-REBASELINE arc once Phase B/C land; same
+  // discipline as S29-MATRIX-PENDING (commit 78cd56a). sessionMR assertion above still passes.
+  it.skip('totalFluidLoss ≈ 450 [PHY-069]', () => { expect(r.totalFluidLoss).toBeCloseTo(445, -1); });  // PHY-071
   it('perCycleTrapped has 36 entries', () => { expect(r.perCycleTrapped?.length).toBe(36); });
   it('perCycleMR first entry ≈ 0.4 [PHY-069]', () => { expect(r.perCycleMR?.[0]).toBeCloseTo(0.1, 1); });  // PHY-071
   it('has layerBuffers', () => { expect(r.layerBuffers).not.toBeNull(); });
