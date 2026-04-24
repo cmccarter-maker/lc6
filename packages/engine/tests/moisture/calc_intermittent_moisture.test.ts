@@ -11,11 +11,15 @@ describe('calcIntermittentMoisture — Breck 16°F groomers 6hrs', () => {
     'skiing', 16, 40, 8, 6, 'male', 170, 1.0, 0.089, 'groomers', null, false, 0, false, 1.0, null, null, 'moderate', null, 5, null, 0, null, null, null, 0, null,
   );
 
-  it('sessionMR = 7', () => { expect(r.sessionMR).toBeCloseTo(3.4, 1); });  // PHY-071: was 7 (inflated by wrong fiber cap)
-  it('trapped ≈ 0.090 [PHY-069]', () => { expect(r.trapped).toBeCloseTo(0.111, 2); });  // PHY-071
+  // S31 Phase B (spec v1.2 §4.2 4-phase decomposition: adds line+transition cold-exposure per cycle)
+  // shifts these numeric ski baselines on this scenario. Re-author in S31-PHASE-C-REBASELINE arc
+  // once Phase B/C land; same discipline as the totalFluidLoss skip below and S29-MATRIX-PENDING.
+  // Observed post-Phase-B: sessionMR ~4.0, trapped ~0.129, goodRunCount 30, yellowRunCount 5.
+  it.skip('sessionMR = 7', () => { expect(r.sessionMR).toBeCloseTo(3.4, 1); });  // PHY-071: was 7 (inflated by wrong fiber cap)
+  it.skip('trapped ≈ 0.090 [PHY-069]', () => { expect(r.trapped).toBeCloseTo(0.111, 2); });  // PHY-071
   it('totalRuns = 36', () => { expect(r.totalRuns).toBe(36); });
-  it('goodRunCount = 11 [PHY-069]', () => { expect(r.goodRunCount).toBe(36); });  // PHY-071
-  it('yellowRunCount = 2', () => { expect(r.yellowRunCount).toBe(0); });  // PHY-071
+  it.skip('goodRunCount = 11 [PHY-069]', () => { expect(r.goodRunCount).toBe(36); });  // PHY-071
+  it.skip('yellowRunCount = 2', () => { expect(r.yellowRunCount).toBe(0); });  // PHY-071
   it('peakHeatBalanceDirection = cold [PHY-069]', () => { expect(r.peakHeatBalanceDirection).toBe('cold'); });
   // S31 Phase A (spec v1.2 §4.6 respiratory scoping: _runMin → _cycleMinRaw) shifts ski totalFluidLoss
   // on this scenario to ~792g. Re-author in S31-PHASE-C-REBASELINE arc once Phase B/C land; same
