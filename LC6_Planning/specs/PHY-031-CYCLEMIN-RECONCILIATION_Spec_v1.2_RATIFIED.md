@@ -1,8 +1,8 @@
 # PHY-031-CYCLEMIN-RECONCILIATION — Engine consumption of PHY-031 component cycle duration
 
 **Spec ID:** PHY-031-CYCLEMIN-RECONCILIATION
-**Version:** v1.1 RATIFIED
-**Status:** RATIFIED (original v1 ratified S30 2026-04-22; revised to v1.1 S31 pre-Phase-A 2026-04-23 per `S31_spec_v1.1_revision.md`).
+**Version:** v1.2 RATIFIED
+**Status:** RATIFIED (original v1 ratified S30 2026-04-22; revised to v1.1 S31 pre-Phase-A 2026-04-23 per `S31_spec_v1.1_revision.md`; amended to v1.2 S31 Phase A 2026-04-23 to narrow §9.5 bit-identical gate).
 **Authoring session:** S30 (spec-authoring only; zero code, zero tests, zero engine touches)
 **Authority relationship:** PHY-031 v1 RATIFIED defines `cycleMin`; this spec defines how `calcIntermittentMoisture` consumes it.
 **Parent spec:** `LC6_Planning/specs/PHY-031_Spec_v1_RATIFIED.md` (616 lines, S28-ratified, LOCKED — this spec does not revise any value within it)
@@ -27,6 +27,7 @@
 |---|---|---|---|
 | v1 RATIFIED | 2026-04-22 | S30 | Original ratification. Hand-authored §9 verification vectors with synthesized gear values produced MR targets (G1 2.6, M2 4.3, P5 5.5) that were not DB-backed. §11 closure criterion for S-001 anchored to synthesized M2 target 4.3. |
 | v1.1 RATIFIED | 2026-04-23 | S31 (pre-Phase-A) | §9 re-authored as patch-correctness gate. §11 restructured: S31 lands reconciliation physics but does NOT close S-001. Removed: MR-target gate criteria anchored to synthesized or current-engine values. Added: structural audit gate, non-ski bit-identical regression (retained), per-cycle shape gates, direction-of-change gate, reference-value logging (non-gating). Rationale: current-engine MR values are not trusted references given open bug docket; closure criteria tied to patch correctness rather than absolute MR values. Preserves Cardinal Rule #1 by refusing to calibrate against values of unverified provenance. |
+| v1.2 RATIFIED | 2026-04-23 | S31 (Phase A pre-commit) | §9.5 bit-identical gate narrowed. Observation during Phase A engine edits: v1.1 §9.5's "no-op for non-ski" rationale is correct for the _cycleMinRaw rename edits (lines 715, 725, 730, 933 under the Phase A shim) but over-applies to line 729 (`_respRun.moistureGhr * (_runMin / 60)` → `* (_cycleMinRaw / 60)`), which is a semantic change extending respiratory scaling from run-only to full-cycle. This uniformly affects any cyclic 2-phase profile — including the synthesized `{run 55, rest 5}` profile that continuous activities (day_hike, backpacking, running, mountain_biking, trail_running) are routed through, and the real `fishing_shore` profile `{cast 2.5, wait 10}`. The divergence is physics-correct: user breathes during the rest/wait phase too, and totalFluidLoss must reflect that. §9.5 narrowed to metrics that SHOULD be uniform across the patch (sessionMR, perCycleMR, trapped, _cumStorageWmin, final layer buffer fills), with totalFluidLoss explicitly excluded and footnoted. Gate purpose preserved: any non-ski sessionMR or buffer drift still halts. |
 
 ---
 
@@ -1052,17 +1053,27 @@ The patch is structurally correct when all of the following are verifiable by co
 
 **Gate criterion:** all 8 structural items verified by code review. Any missing item halts.
 
-### 9.5 Implementation-session gate: non-ski regression (retained from v1)
+### 9.5 Implementation-session gate: non-ski regression (narrowed in v1.2)
 
-For each of the 11 activities listed below, the patch must produce **bit-identical output** vs pre-patch baseline at HEAD `78cd56a`:
+For each of the 11 activities listed below, the patch must produce **bit-identical output** on the gated metrics vs pre-patch baseline at HEAD `78cd56a`:
 
 `day_hike`, `backpacking`, `running`, `mountain_biking`, `trail_running`, `bouldering`, `camping`, `fishing`, `kayaking_lake`, `cycling_road_flat`, `snowshoeing`.
 
-For each activity, bit-identical means `sessionMR`, `totalFluidLoss`, `_cumStorageWmin`, and final layer buffer fills (base, mid, insulative, shell) are equal to the pre-patch baseline captured in `S31_PRE_PATCH_BASELINE.md` to full floating-point precision.
+**Gated metrics (must be bit-identical):**
 
-**Rationale:** the `_cycleMinRaw` scoping correction is a no-op for these activities (their `_runMin + _liftMin` already equals full cycle duration, having no line or transition phase). Any observed divergence indicates the patch leaked into code paths outside the ski cyclic loop and must halt for investigation.
+- `sessionMR`
+- `perCycleMR` (full array)
+- `trapped`
+- `_cumStorageWmin`
+- Final layer buffer fills (base, mid, insulative, shell)
 
-**Gate criterion:** all 11 activities bit-identical. Any single byte-level divergence halts.
+**Explicitly excluded from the bit-identical gate:**
+
+- `totalFluidLoss` — exits the body as respiratory vapor + sweat + insensible diffusion, and is expected to change for any cyclic 2-phase profile once the §4.6 respiratory-scoping fix (line 729 in `calc_intermittent_moisture.ts`) extends respiratory moisture from `_runMin`-scoped to `_cycleMinRaw`-scoped. The change is uniform and physics-correct: the user breathes during the rest/wait phase of a cyclic profile just as they do during the run phase. The affected non-ski profiles are the synthesized `{run 55, rest 5}` profile that continuous activities (day_hike, backpacking, running, mountain_biking, trail_running) are routed through (`calc_intermittent_moisture.ts:292-310`) and the real `fishing_shore` profile `{cast 2.5, wait 10}`. Expected deltas range from +~3% on continuous profiles (+5/55 minutes ≈ +9% respiratory, which is a small fraction of total fluid loss) to +~85% on fishing_shore (+10/2.5 minutes ≈ +4× respiratory, where respiratory is a larger share of the total because cast/wait produces little sweat). Bouldering, camping, kayaking_lake, cycling_road_flat, and snowshoeing are on the steady-state / linear paths and see zero delta. None of the `totalFluidLoss` deltas propagate into the layer buffer — respiratory vapor exits via breath, not into the fabric — so `trapped`, `_cumStorageWmin`, and buffer fills remain bit-identical.
+
+**Rationale for narrowing:** v1.1's §9.5 rationale ("the `_cycleMinRaw` scoping correction is a no-op for these activities") is correct for the rename-only edits at lines 715, 725, 730, 933 (all no-ops under the Phase A shim where `_cycleMinRaw === _runMin + _liftMin`), but over-applies to line 729, which is a `_runMin` → `_cycleMinRaw` semantic change rather than a `_runMin + _liftMin` rename. The narrowed gate preserves the invariant that actually matters for S-001 and MR-fidelity work — sessionMR, perCycleMR, trapped, and buffer fills must stay stable on non-ski — while accepting a physics-correct `totalFluidLoss` shift that was always latent in the §4.6 respiratory-scoping fix.
+
+**Gate criterion:** all 11 activities bit-identical on the gated metrics above. Any single byte-level divergence on a gated metric halts. Divergence on `totalFluidLoss` is expected on the affected profiles and does not halt; it is recorded to `S31_POST_PATCH_BASELINE.md` per §9.8 for reference.
 
 ### 9.6 Implementation-session gate: per-cycle trajectory shape
 
