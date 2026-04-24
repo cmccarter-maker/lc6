@@ -185,6 +185,27 @@ export interface IntermittentMoistureResult {
   perStepDist?: number[];
   perStepElev?: number[];
   perStepTrapped?: number[];
+  // ── S10B: per-cycle heat-balance terms (cyclic path only) ──
+  // All arrays length === wholeCycles when present. null on non-cyclic paths.
+  // Values represent end-of-cycle state (after RUN phase) unless noted.
+  perCycleM?: number[] | null;         // Metabolic heat production, W (total body)
+  perCycleW?: number[] | null;         // Mechanical work output, W (0 for non-cycling activities)
+  perCycleC?: number[] | null;         // Convective heat loss, W
+  perCycleR?: number[] | null;         // Radiative heat loss, W
+  perCycleEResp?: number[] | null;     // Respiratory evaporative heat loss, W
+  perCycleESkin?: number[] | null;     // Skin evaporative heat loss (actual), W
+  perCycleEMax?: number[] | null;      // Maximum skin evaporative capacity, W
+  perCycleEReq?: number[] | null;      // Required skin evaporation, W
+  perCycleHc?: number[] | null;        // Convective heat transfer coefficient, W/m²K
+  perCycleHMass?: number[] | null;     // Mass transfer coefficient (Lewis relation), m/s
+  perCyclePa?: number[] | null;        // Ambient vapor pressure, Pa
+  perCycleReClEffective?: number[] | null; // Effective clothing vapor resistance, m²Pa/W
+  perCycleVPD?: number[] | null;       // Vapor pressure deficit (skin-to-ambient), Pa
+  // ── S10B: supplementary-pass replacements for crude placeholders ──
+  perCycleSweatRate?: number[] | null; // Sweat rate, g/s (replaces S_heat > 0 ? 0.01 : 0)
+  perCycleTCl?: number[] | null;       // Clothing surface temperature from iterativeTSkin, °C
+  perCycleHTissue?: number[] | null;   // Tissue heat transfer coefficient, W/m²K
+  perCycleSRun?: number[] | null;      // RUN-phase storage, W (distinct from perCycleHeatStorage which is 4-phase avg)
 }
 
 /**
@@ -599,6 +620,24 @@ export function calcIntermittentMoisture(
     const _perCycleCIVD: number[] = [];
     let _totalFluidLoss = 0;
     const _perCycleTSkin: number[] = [];
+    // ── S10B accumulators: per-cycle heat-balance terms ──
+    const _perCycleM: number[] = [];
+    const _perCycleW: number[] = [];
+    const _perCycleC: number[] = [];
+    const _perCycleR: number[] = [];
+    const _perCycleEResp: number[] = [];
+    const _perCycleESkin: number[] = [];
+    const _perCycleEMax: number[] = [];
+    const _perCycleEReq: number[] = [];
+    const _perCycleHc: number[] = [];
+    const _perCycleHMass: number[] = [];
+    const _perCyclePa: number[] = [];
+    const _perCycleReClEffective: number[] = [];
+    const _perCycleVPD: number[] = [];
+    const _perCycleSweatRate: number[] = [];
+    const _perCycleTCl: number[] = [];
+    const _perCycleHTissue: number[] = [];
+    const _perCycleSRun: number[] = [];
     let _goodRunCount = 0;
     let _yellowRunCount = 0;
 
@@ -1233,6 +1272,56 @@ export function calcIntermittentMoisture(
       _perCycleCoreTemp.push(Math.round(_coreNow * 100) / 100);
       _perCycleCIVD.push(Math.round(civdProtectionFromSkin(_TskRun) * 100) / 100);
       _perCycleTSkin.push(Math.round(_TskRun * 10) / 10);
+      // ── S10B pushes: heat-balance terms from RUN phase locals ──
+      // All terms are end-of-RUN-phase values at end-of-cycle.
+      // Rounding convention: 2 decimal places for W fields (sub-unit precision
+      // not meaningful for heat balance display); 4 decimals for coefficients.
+      _perCycleM.push(Math.round(_Qmet * 100) / 100);
+      _perCycleW.push(0); // Mechanical work: 0 for ski/hike/etc. (TODO future: cycling W)
+      _perCycleC.push(Math.round(_QconvRun * 100) / 100);
+      _perCycleR.push(Math.round(_QradRun * 100) / 100);
+      _perCycleEResp.push(Math.round(_respRun.total * 100) / 100);
+      // E_skin: actual skin evaporation = min(E_req, E_max). Sweat rate × latent heat.
+      // From the sweat-rate computation: _srRun (g/s) × LATENT_HEAT_VAP_J_PER_G.
+      // Locals _srRun and _ediffRun exist at this scope per earlier grep (line 666).
+      // E_skin = E_diff (insensible diffusion) + qEvapW (sweat-driven regulatory)
+      // Per engine line 975 (_QpassRun composition) and line 982 (_runNetHeat).
+      // Both channels operate in parallel — diffusion is humidity-gradient driven,
+      // qEvapW is sweat-rate × latent heat. Both are real heat losses from skin.
+      const _ESkinTotalW = _ediffRun + _srRun.qEvapW;
+      _perCycleESkin.push(Math.round(_ESkinTotalW * 100) / 100);
+      _perCycleEMax.push(Math.round(_emaxRun.eMax * 100) / 100);
+      // E_req: required evaporation = residual heat after passive losses (_eReqRun at line 977).
+      // Not _ediffRun (which is E_diff, passive insensible diffusion).
+      _perCycleEReq.push(Math.round(_eReqRun * 100) / 100);
+      _perCycleHc.push(Math.round(_hcRun * 10000) / 10000);
+      // h_mass from Lewis relation: h_mass = h_c / (LEWIS_NUMBER × rho_air × cp_air)
+      // For standard conditions ~ h_c / 16.5 gives m/s for vapor mass transfer.
+      // Using Gagge convention: h_e ≈ 16.5 × h_c (W/m²kPa), so h_mass ≈ h_c / 61600 (m/s).
+      const _hMassRun = _hcRun / 61600;
+      _perCycleHMass.push(Math.round(_hMassRun * 100000000) / 100000000); // 8 decimals — m/s is small
+      _perCyclePa.push(Math.round(_Pa_ambient * 100) / 100);
+      // R_e_cl_effective: Rcl / (im × LR_factor) per ISO 9920
+      // LR_factor = 16.5 K/kPa Lewis relation for sweating heat transfer
+      const _ReClEffective = (_effectiveIm || 0.089) > 0
+        ? _Rclo / ((_effectiveIm || 0.089) * 16.5)
+        : 0;
+      _perCycleReClEffective.push(Math.round(_ReClEffective * 10000) / 10000);
+      // VPD: saturation pressure at T_skin minus ambient partial pressure
+      const _pSatSkin = pSatPa(_TskRun);
+      const _VPDRun = _pSatSkin - _Pa_ambient;
+      _perCycleVPD.push(Math.round(_VPDRun * 100) / 100);
+      _perCycleSweatRate.push(Math.round((_srRun.sweatGPerHr / 3600) * 100000) / 100000);
+      // T_cl: clothing surface temperature from convergence, already computed at _TsurfRun (line 661)
+      _perCycleTCl.push(Math.round(_TsurfRun * 10) / 10);
+      // h_tissue: from iterativeTSkin convergence. The solver returns h_tissue implicitly
+      // via R_tissue. _Rtissue = tissueCloEffective × 0.155. h_tissue = 1/R_tissue (W/m²K).
+      const _hTissueRun = _Rtissue > 0 ? 1 / _Rtissue : 9.0;
+      _perCycleHTissue.push(Math.round(_hTissueRun * 1000) / 1000);
+      // S_run: RUN-phase-only storage (W). Distinct from perCycleHeatStorage which is
+      // the cycle-averaged storage across all 4 phases. Needed for first-law
+      // verification scoped to RUN-phase quantities.
+      _perCycleSRun.push(Math.round(_runNetHeat * 100) / 100);
 
       // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §6.5: advance wall-clock tracker by _cycleMinRaw.
       // Rest-phase insertions (lunch, otherBreak) advance it separately above.
@@ -1334,6 +1423,24 @@ export function calcIntermittentMoisture(
         fill: l.cap > 0 ? Math.round(l.buffer / l.cap * 100) : 0,
       })),
       endingLayers: _layers.map(l => ({ im: l.im, cap: l.cap, buffer: l.buffer, wicking: l.wicking, fiber: l.fiber, name: l.name })),
+      // ── S10B: per-cycle heat-balance terms ──
+      perCycleM: _perCycleM.length > 0 ? _perCycleM : null,
+      perCycleW: _perCycleW.length > 0 ? _perCycleW : null,
+      perCycleC: _perCycleC.length > 0 ? _perCycleC : null,
+      perCycleR: _perCycleR.length > 0 ? _perCycleR : null,
+      perCycleEResp: _perCycleEResp.length > 0 ? _perCycleEResp : null,
+      perCycleESkin: _perCycleESkin.length > 0 ? _perCycleESkin : null,
+      perCycleEMax: _perCycleEMax.length > 0 ? _perCycleEMax : null,
+      perCycleEReq: _perCycleEReq.length > 0 ? _perCycleEReq : null,
+      perCycleHc: _perCycleHc.length > 0 ? _perCycleHc : null,
+      perCycleHMass: _perCycleHMass.length > 0 ? _perCycleHMass : null,
+      perCyclePa: _perCyclePa.length > 0 ? _perCyclePa : null,
+      perCycleReClEffective: _perCycleReClEffective.length > 0 ? _perCycleReClEffective : null,
+      perCycleVPD: _perCycleVPD.length > 0 ? _perCycleVPD : null,
+      perCycleSweatRate: _perCycleSweatRate.length > 0 ? _perCycleSweatRate : null,
+      perCycleTCl: _perCycleTCl.length > 0 ? _perCycleTCl : null,
+      perCycleHTissue: _perCycleHTissue.length > 0 ? _perCycleHTissue : null,
+      perCycleSRun: _perCycleSRun.length > 0 ? _perCycleSRun : null,
     };
   } else if (profile.type === 'linear') {
     // === LINEAR PATH (self-contained) ===

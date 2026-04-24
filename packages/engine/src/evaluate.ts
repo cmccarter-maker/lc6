@@ -586,6 +586,26 @@ function buildTrajectory(
     // vasoconstriction_active: CIVD < threshold means constriction engaged
     const vasoconstriction_active = civd < CIVD_VASOCONSTRICTION_THRESHOLD;
 
+    // ── S10B: per-cycle heat-balance terms from calcIntermittentMoisture ──
+    // All values represent end-of-RUN-phase state at this cycle.
+    // When absent (null or undefined), fall back to 0 with a log note.
+    const _M = mr.perCycleM?.[cycleIdx] ?? 0;
+    const _W = mr.perCycleW?.[cycleIdx] ?? 0;
+    const _C = mr.perCycleC?.[cycleIdx] ?? 0;
+    const _R = mr.perCycleR?.[cycleIdx] ?? 0;
+    const _E_resp = mr.perCycleEResp?.[cycleIdx] ?? 0;
+    const _E_skin = mr.perCycleESkin?.[cycleIdx] ?? 0;
+    const _E_max = mr.perCycleEMax?.[cycleIdx] ?? 0;
+    const _E_req = mr.perCycleEReq?.[cycleIdx] ?? 0;
+    const _h_c = mr.perCycleHc?.[cycleIdx] ?? 0;
+    const _h_mass = mr.perCycleHMass?.[cycleIdx] ?? 0;
+    const _P_a = mr.perCyclePa?.[cycleIdx] ?? 0;
+    const _R_e_cl_effective = mr.perCycleReClEffective?.[cycleIdx] ?? 0;
+    const _VPD = mr.perCycleVPD?.[cycleIdx] ?? 0;
+    const _sweat_rate_real = mr.perCycleSweatRate?.[cycleIdx] ?? 0;
+    const _T_cl_real = mr.perCycleTCl?.[cycleIdx] ?? (T_skin - 2);
+    const _h_tissue_real = mr.perCycleHTissue?.[cycleIdx] ?? (vasoconstriction_active ? 5.0 : 9.0);
+
     // Q_shiver: SUPPLEMENTARY PASS — real shiveringBoost (Young et al. 1986)
     // Phase-aware MET: lift/wait/rest phases use ~30% of activity MET (EPOC decayed)
     const _bsa = duboisBSA(input.biometrics.weight_lb);
@@ -604,10 +624,12 @@ function buildTrajectory(
       slice_duration_min: sliceDurMin,
     });
 
-    // Sweat rate: TODO-SUPPLEMENTARY — full pass would call computeSweatRate.
-    // For 10a, estimate from MR regime.
-    const sweat_rate = S_heat > 0 ? 0.01 : 0; // crude placeholder
-    const SW_max = 0.03; // g/s, typical max (TODO-SUPPLEMENTARY)
+    // S10B: real sweat rate from calcIntermittentMoisture's per-cycle computation.
+    // _sweat_rate_real is in g/s (same units as the prior placeholder).
+    const sweat_rate = _sweat_rate_real;
+    // SW_max retained as 0.03 g/s for CDI stage-detection input (typical max threshold).
+    // Not derived per-cycle; it's a physiological ceiling, not an operating value.
+    const SW_max = 0.03;
 
     // T_core projection for next cycle (not next phase)
     const T_core_next = (cycleIdx < cycleCount - 1 && mr.perCycleCoreTemp?.[cycleIdx + 1] != null)
@@ -709,35 +731,35 @@ function buildTrajectory(
       dT_skin_dt_smoothed,
       T_core,
       dT_core_dt,
-      T_cl: T_skin - 2, // TODO-SUPPLEMENTARY: from iterativeTSkin convergence
-      h_tissue: vasoconstriction_active ? 5.0 : 9.0, // TODO-SUPPLEMENTARY: from Gagge solve
+      T_cl: _T_cl_real,
+      h_tissue: _h_tissue_real,
 
-      // Heat balance terms — TODO-SUPPLEMENTARY: from second-pass primitives
-      M: 0,
-      W: 0,
-      C: 0,
-      R: 0,
-      E_resp: 0,
-      E_skin: 0,
-      E_max: 0,
-      E_req: 0,
+      // Heat balance terms — S10B: from calcIntermittentMoisture per-cycle exposure
+      M: _M,
+      W: _W,
+      C: _C,
+      R: _R,
+      E_resp: _E_resp,
+      E_skin: _E_skin,
+      E_max: _E_max,
+      E_req: _E_req,
       S: S_heat,
       S_net: S_heat - Q_shiver, // S after shivering compensation
       SW_required: sweat_rate,
       Q_shiver,
 
       V_effective: w.wind_mph * 0.44704,
-      h_c: 0, // TODO-SUPPLEMENTARY
-      h_mass: 0, // TODO-SUPPLEMENTARY
+      h_c: _h_c,
+      h_mass: _h_mass,
       T_air: ta_C,
       T_mrt: ta_C, // v1: T_mrt = T_air
       RH: w.humidity,
-      P_a: 0, // TODO-SUPPLEMENTARY
+      P_a: _P_a,
 
       R_clo_effective: ensemble.total_clo * 0.155, // clo → m²K/W
-      R_e_cl_effective: 0, // TODO-SUPPLEMENTARY
+      R_e_cl_effective: _R_e_cl_effective,
       im_system: ensemble.ensemble_im,
-      VPD: 0, // TODO-SUPPLEMENTARY
+      VPD: _VPD,
 
       MR,
       HLR,
