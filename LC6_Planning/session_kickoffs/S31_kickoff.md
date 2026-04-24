@@ -2,7 +2,7 @@
 
 **Session:** S31 (Code-led implementation session)
 **Authored by:** Chat (original v1 on April 22–23, 2026; revised v1.1 during S31 pre-Phase-A, April 23, 2026)
-**Parent spec:** `LC6_Planning/specs/PHY-031-CYCLEMIN-RECONCILIATION_Spec_v1.1_RATIFIED.md` (spec revision ratified S31 pre-Phase-A)
+**Parent spec:** `LC6_Planning/specs/PHY-031-CYCLEMIN-RECONCILIATION_Spec_v1.2_RATIFIED.md` (v1.1 revision ratified S31 pre-Phase-A; v1.2 §9.5 narrowed S31 Phase A pre-commit)
 **Branch:** `session-13-phy-humid-v2` (unpushed; continues local through S31)
 **Expected start HEAD:** post-spec-v1.1-commit SHA (one commit past `617508a` baseline-capture commit)
 **Cardinal Rule #8 active.** Highest-risk engine patch since PHY-068.
@@ -60,10 +60,10 @@ fi
 # Working tree status (untracked probe test and some tooling is expected)
 git status --short
 
-# Spec v1.1 present (authored by Chat, committed by Code during this session)
-SPEC="LC6_Planning/specs/PHY-031-CYCLEMIN-RECONCILIATION_Spec_v1.1_RATIFIED.md"
+# Spec v1.2 present (authored by Chat, committed by Code during this session)
+SPEC="LC6_Planning/specs/PHY-031-CYCLEMIN-RECONCILIATION_Spec_v1.2_RATIFIED.md"
 if [[ ! -f "$SPEC" ]]; then
-  echo "HALT: spec v1.1 missing at $SPEC. Author + commit before Phase A."
+  echo "HALT: spec v1.2 missing at $SPEC. Author + commit before Phase A."
   exit 1
 fi
 
@@ -110,7 +110,7 @@ Completed at commit `617508a`. Real-DB optimal_gear ensemble baselines captured 
 
 **These are spec v1.1 §9.3 reference values, not gate targets.** Phase A/B/C outputs compared against these values in §9.7 direction-of-change gate (relative magnitudes, not absolute equality).
 
-Non-ski baselines captured in the same commit — used by §9.5 bit-identical regression gate.
+Non-ski baselines captured in the same commit — used by spec v1.2 §9.5 bit-identical regression gate (narrowed to sessionMR, perCycleMR, trapped, _cumStorageWmin, and final layer buffer fills; totalFluidLoss excluded — see spec v1.2 §9.5 footnote).
 
 ---
 
@@ -139,7 +139,7 @@ All three must verify:
 
 1. **Structural audit (§9.4 subset):** grep confirms `_respRun.moistureGhr`, `_insensibleG`, `_fabricInG`, `_cycleTotalMin`, `_cycleMin`, `_cycleDurF` all scope to `_cycleMinRaw`. No rogue `_runMin + _liftMin` concatenations remain in moisture-accounting code paths.
 
-2. **Non-ski regression (§9.5 full gate):** all 11 activities listed in spec v1.1 §9.5 produce byte-identical sessionMR, totalFluidLoss, cumStorageWmin, and layer buffer fills vs the `S31_PRE_PATCH_BASELINE.md` values. Any single byte divergence halts.
+2. **Non-ski regression (spec v1.2 §9.5 narrowed gate):** all 11 activities listed produce bit-identical `sessionMR`, `perCycleMR`, `trapped`, `_cumStorageWmin`, and final layer buffer fills (base, mid, insulative, shell) vs the `S31_PRE_PATCH_BASELINE.md` values. Any single divergence on a gated metric halts. `totalFluidLoss` is explicitly excluded from the bit-identical gate per spec v1.2 §9.5 (line 729 respiratory-scoping extension from `_runMin` to `_cycleMinRaw` shifts totalFluidLoss on cyclic 2-phase profiles — day_hike, backpacking, running, mountain_biking, trail_running, fishing_shore — in a physics-correct way that does not propagate to layer buffers).
 
 3. **Ski direction sanity:** G1/M2/P5 post-Phase-A sessionMR values are logged. No absolute target, but sanity check: no vector changes by more than 20% of its baseline (Phase A alone is a small change; large swings indicate unintended effect).
 
@@ -231,7 +231,7 @@ if (_liftLineMin > 0) {
 
 1. **Structural audit (§9.4 subset):** verify 4-phase loop is in declared order by code review. Verify per-phase MET constants match spec. Verify EPOC continuity: log `_METstart_line` for cycles 1, 5, 10 of each vector and confirm inheritance from `_prevRunEndMET`. Verify Tier 1 skip active for G1.
 
-2. **Non-ski regression (§9.5 full gate):** still bit-identical. Non-ski activities have no line or transition phase in `profiles.ts`, so 4-phase loop code path should never execute for them.
+2. **Non-ski regression (spec v1.2 §9.5 narrowed gate):** gated metrics (`sessionMR`, `perCycleMR`, `trapped`, `_cumStorageWmin`, final layer buffer fills) still bit-identical vs pre-S31 baseline. Non-ski activities have no line or transition phase in `profiles.ts`, so 4-phase loop code path should never execute for them. `totalFluidLoss` stays offset by the Phase A respiratory extension and is not re-evaluated here.
 
 3. **Ski trajectory shape (§9.6 subset):** per-cycle MR arrays for M2 and P5 show measurably higher values at matching cycle indices than G1's, because M2/P5 have non-zero line phases accumulating cold exposure. If G1 and M2/P5 trajectories are similar despite different line phase durations, Phase B didn't land.
 
@@ -346,8 +346,8 @@ Verify all 8 items by code review. Specifically for Phase C:
 - Rest-phase integration fires at wall-clock 12:15 PM / 2:30 PM
 - Default helpers in evaluate.ts return `true` for durationHrs > 5
 
-#### 9.5 Non-ski bit-identical regression
-All 11 non-ski activities: byte-identical to pre-S31 baseline. No exceptions. Cycling, running, hiking, etc. have no lunch or otherBreak in their cyclic profiles — the new CycleOverride fields default to `undefined` and rest-phase code path should not execute.
+#### 9.5 Non-ski bit-identical regression (spec v1.2 narrowed)
+All 11 non-ski activities: bit-identical to pre-S31 baseline on the gated metrics — `sessionMR`, `perCycleMR`, `trapped`, `_cumStorageWmin`, and final layer buffer fills (base, mid, insulative, shell). `totalFluidLoss` is explicitly excluded per spec v1.2 §9.5 (see footnote there); the Phase A respiratory-scoping offset remains and does not re-appear here. Cycling, running, hiking, etc. have no lunch or otherBreak in their cyclic profiles — the new CycleOverride fields default to `undefined` and rest-phase code path should not execute.
 
 #### 9.6 Per-cycle trajectory shape gates
 
@@ -522,9 +522,9 @@ Post-push: per-session branch protocol decides merge or keep-branch.
 
 S31 formally closes when ALL of the following are true:
 
-- [ ] Spec v1.1 authored and committed
-- [ ] Phase A commit landed with structural audit pass + non-ski bit-identical
-- [ ] Phase B commit landed with structural audit pass + non-ski bit-identical + shape gate for line-phase accumulation
+- [ ] Spec v1.1 authored and committed (then amended to v1.2 pre-Phase-A-commit to narrow §9.5)
+- [ ] Phase A commit landed with structural audit pass + non-ski bit-identical on spec v1.2 §9.5 gated metrics
+- [ ] Phase B commit landed with structural audit pass + non-ski bit-identical on spec v1.2 §9.5 gated metrics + shape gate for line-phase accumulation
 - [ ] Phase C commit landed with ALL §9.4–§9.7 gates pass
 - [ ] `S31_POST_PATCH_BASELINE.md` authored with post-patch reference values
 - [ ] `S29-PHY-031-CYCLEMIN-PHYSICS-GAP` status flipped to CLOSED
