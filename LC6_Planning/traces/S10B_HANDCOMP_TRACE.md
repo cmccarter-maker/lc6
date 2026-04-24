@@ -2,7 +2,7 @@
 
 **Session:** S10B (TrajectoryPoint heat-balance backfill)
 **Date:** April 24, 2026
-**HEAD at verification:** [S10B-CLOSE-SHA]
+**HEAD at verification:** 1450801
 **Purpose:** Verify S10B additions to `IntermittentMoistureResult` and `TrajectoryPoint` do not alter computed values — only expose values already computed internally in `calcIntermittentMoisture`.
 
 ---
