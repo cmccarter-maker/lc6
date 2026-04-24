@@ -28,6 +28,23 @@ export const DEFAULT_LIFT_MIN = 7;
 export const TRANSITION_MIN = 3;
 
 /**
+ * Line-phase MET target — skier waiting in lift line (stationary standing, gear on,
+ * conversational, intermittent light movement).
+ * Source: Ainsworth 2011 Compendium of Physical Activities code 20030 "standing, talking" = 1.8 MET.
+ * Spec: PHY-031-CYCLEMIN-RECONCILIATION v1.2 §5.2.
+ */
+export const LINE_MET = 1.8;
+
+/**
+ * Transition-phase MET target — snowboarder strapping in, skier tightening boot buckles
+ * and adjusting goggles/poles, small push-off to run entry.
+ * Source: Ainsworth 2011 Compendium of Physical Activities code 05160
+ * "standing, light effort tasks (pump gas, change light bulb, etc.)" = 2.0 MET.
+ * Spec: PHY-031-CYCLEMIN-RECONCILIATION v1.2 §5.2.
+ */
+export const TRANSITION_MET = 2.0;
+
+/**
  * Rest fraction — fraction of total session time spent off-cycle.
  * Covers: bathroom breaks, lunch, beer, resting quads, gear adjustments.
  * Applied as effectiveMinutes = durationMin × (1 − REST_FRACTION).

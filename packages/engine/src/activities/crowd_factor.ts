@@ -32,6 +32,7 @@ export type SkiTerrain = 'groomers' | 'moguls' | 'trees' | 'bowls' | 'park';
 export interface CycleResult {
   totalCycles: number;
   cycleMin: number;
+  liftLineMin: number;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ export interface CycleResult {
  * Lift-line wait by crowd tier (minutes). Per spec §4.1.
  * Tier 1 Ghost Town = 0; Tier 6 Mayhem = 20.
  */
-const LIFT_LINE_MIN_BY_TIER: Readonly<Record<CrowdTier, number>> = {
+export const LIFT_LINE_MIN_BY_TIER: Readonly<Record<CrowdTier, number>> = {
   1: 0,
   2: 2,
   3: 5,
@@ -299,5 +300,5 @@ export function computeCycle(
   //                          = effectiveMin / cycleMinRaw
   // Use the effectiveMin / cycleMinRaw form to match spec §12 worked examples exactly.
   const totalCycles = Math.floor(effectiveMin / cycleMinRaw);
-  return { totalCycles, cycleMin };
+  return { totalCycles, cycleMin, liftLineMin };
 }

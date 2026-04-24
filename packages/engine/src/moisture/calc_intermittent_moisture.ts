@@ -89,6 +89,8 @@ import {
   INTERMITTENT_PHASE_PROFILES,
   GENERIC_GEAR_SCORES_BY_SLOT,
 } from '../activities/profiles.js';
+// PHY-031-CYCLEMIN-RECONCILIATION v1.2 §4 & §5: 4-phase cycle decomposition constants.
+import { TRANSITION_MIN, LINE_MET, TRANSITION_MET } from '../activities/phy031_constants.js';
 
 import type { PhaseProfile, PhaseDefinition } from '../activities/profiles.js';
 
@@ -201,6 +203,7 @@ interface FitnessProfile {
  */
 interface CycleOverride {
   totalCycles?: number;
+  liftLineMin?: number;  // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §4.1: tier-derived lift-line wait (minutes). Undefined for non-ski and ski-history short-circuit.
   elevFt?: number;
   perRunVertFt?: number;
   dewPointC?: number | null;
@@ -633,9 +636,18 @@ export function calcIntermittentMoisture(
     let _sweatRateRunGhr = 0;
     let _condensWeights: number[] = [];
 
+    // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §4.1: 4-phase decomposition applies to resort ski profiles only.
+    // Backcountry (linear path), non-ski cyclic profiles (golf/fishing/cycling/etc.), and the continuous-activity
+    // synthetic {run 55, rest 5} profile all retain the pre-Phase-B 2-phase structure (line and transition skipped,
+    // _cycleMinRaw = _runMin + _liftMin).
+    const _isResortSkiProfile = isSki && profileKey !== null && profileKey !== 'skiing_bc';
+    const _liftLineMin = _isResortSkiProfile ? (_mutableCycleOverride?.liftLineMin ?? 0) : 0;
+
     for (let c = 0; c < wholeCycles; c++) {
-      // PHY-031-CYCLEMIN-RECONCILIATION v1.1 §4.6: wall-clock cycle duration for "processes always on" buffer advancement. Phase A shim == _runMin + _liftMin; Phase B extends to _liftLineMin + _liftMin + TRANSITION_MIN + _runMin.
-      const _cycleMinRaw = _runMin + _liftMin;
+      // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §4.6: wall-clock cycle duration for "processes always on" buffer advancement. 4-phase for resort ski (line+lift+transition+run), 2-phase otherwise (run+lift).
+      const _cycleMinRaw = _isResortSkiProfile
+        ? _liftLineMin + _liftMin + TRANSITION_MIN + _runMin
+        : _runMin + _liftMin;
       const _isWarmup = (c < _warmupCycles);
       const _cycleMET = _isWarmup ? _groomerMET : _METrun;
       const _cycleSpeedWMs = _isWarmup ? (_speedWindMs * 0.6) : _speedWindMs;
@@ -652,6 +664,44 @@ export function calcIntermittentMoisture(
         : 33.7;
       const _civdCycle = civdProtectionFromSkin(_prevTskin);
       const _Rtissue = computeRtissueFromCIVD(_civdCycle);
+
+      // === LINE PHASE: Sub-stepped, stationary-in-lift-line [spec v1.2 §4.2, §5.2] ===
+      // Wall-clock first phase of each cycle. MET target = LINE_MET (1.8, Ainsworth 20030).
+      // EPOC decay from phantom-prior-cycle run-end overlaid for c > 0; cycle 0 uses pure LINE_MET per spec §4.3.1.
+      // Skipped entirely when _liftLineMin === 0 (Tier 1 Ghost Town or non-resort-ski).
+      let _sweatLineG = 0, _lineCondensG = 0, _lineExcessG = 0, _lineStorage = 0;
+      if (_liftLineMin > 0) {
+        const _lineEpoc = epocParams(_cycleMET, LINE_MET);
+        for (let mn = 0; mn < _liftLineMin; mn++) {
+          const _t = mn + 0.5;
+          const _METnow = c === 0
+            ? LINE_MET
+            : LINE_MET + _lineEpoc.aFast * Math.exp(-_t / _lineEpoc.tauFast) + _lineEpoc.aSlow * Math.exp(-_t / _lineEpoc.tauSlow);
+          const _shiv = shiveringBoost(_TambC, _METnow, _totalCLO + _tissueCLO, _bodyFatPct);
+          const _hcLine = 8.3 * Math.sqrt(Math.max(0.5, _windMs));
+          const _RaLine = 1 / _hcLine;
+          const _iterLine = iterativeTSkin(coreTemp, _TambC, _Rtissue, _Rclo, _RaLine, _bsa, _METnow, _windMs, _humFrac * 100, _effectiveIm || 0.089, _bodyFatPct, 6, 0.1);
+          const _TskLine = _iterLine.T_skin;
+          const _QmLine = computeMetabolicHeat(_METnow, _bodyMassKg);
+          const _QcLine = computeConvectiveHeatLoss(_TskLine, _TambC, _Rclo, _bsa, _windMs, 0);
+          const _TsLine = _TskLine - (_TskLine - _TambC) * (_Rclo / (_Rclo + _RaLine));
+          const _QrLine = computeRadiativeHeatLoss(_TsLine, _TambC, _bsa);
+          const _respLine = computeRespiratoryHeatLoss(_METnow, _TambC, _humFrac * 100, _bodyMassKg, _faceCover);
+          const _M_Wm2_line = _METnow * 58.2;
+          const _ediffLine = computeEdiff(_M_Wm2_line, 0, _Pa_ambient, _bsa);
+          const _QpLine = _QcLine + _QrLine + _respLine.total + _ediffLine;
+          const _resLine = _QmLine - _QpLine;
+          const _eReqLine = Math.max(0, _resLine);
+          const _emaxLine = computeEmax(_TskLine, _TambC, _humFrac * 100, _windMs, _effectiveIm || 0.089, _totalCLO, _bsa);
+          const _srLine = computeSweatRate(_eReqLine, _emaxLine.eMax);
+          _sweatLineG += _srLine.sweatGPerHr * (1 / 60);
+          const _lineVaporMin = Math.min(_srLine.sweatGPerHr, (_emaxLine.eMax / L_V_J_PER_G) * 3600) / 60;
+          const _lineSurfMin = _surfacePassHr / 60;
+          _lineCondensG += Math.max(0, _lineVaporMin - _lineSurfMin);
+          _lineExcessG += Math.max(0, _srLine.sweatGPerHr / 60 - _lineVaporMin);
+          _lineStorage += (_resLine - _srLine.qEvapW) * 1;
+        }
+      }
 
       // === RUN PHASE: Energy Balance ===
       const _hcRun = 8.3 * Math.sqrt(Math.max(0.5, _windMs + _cycleSpeedWMs));
@@ -677,11 +727,13 @@ export function calcIntermittentMoisture(
       const _runNetHeat = _residRun - _srRun.qEvapW;
       const _runStorage = _runNetHeat * _runMin;
 
-      // === LIFT PHASE: Sub-stepped with EPOC decay ===
+      // === LIFT PHASE: Sub-stepped with EPOC decay (continuity from line-end per spec v1.2 §4.3.1) ===
       const _cycleEpoc = epocParams(_cycleMET, _METlift);
       let _sweatLiftG = 0, _liftCondensG = 0, _liftExcessG = 0, _liftStorage = 0, _eolDeficit = 0;
       for (let mn = 0; mn < _liftMin; mn++) {
-        const _t = mn + 0.5;
+        // tFromRunEnd = _liftLineMin + mn + 0.5: decay continues across the line → lift boundary.
+        // For non-ski and _liftLineMin === 0, reduces to mn + 0.5 (current-engine behavior, bit-identical preservation).
+        const _t = _liftLineMin + mn + 0.5;
         const _METnow = _METlift + _cycleEpoc.aFast * Math.exp(-_t / _cycleEpoc.tauFast) + _cycleEpoc.aSlow * Math.exp(-_t / _cycleEpoc.tauSlow);
         const _shiv = shiveringBoost(_TambC, _METnow, _totalCLO + _tissueCLO, _bodyFatPct);
         const _METeff = _METnow;
@@ -712,8 +764,47 @@ export function calcIntermittentMoisture(
         _liftStorage += _liftNetHeat * 1;
         if (mn === _liftMin - 1) _eolDeficit = _liftNetHeat;
       }
-      _cumStorageWmin += _runStorage + _liftStorage;
-      const _cycleTotalWmin = _runStorage + _liftStorage;
+
+      // === TRANSITION PHASE: Sub-stepped, brief light-activity at lift top [spec v1.2 §4.2, §5.2] ===
+      // 3 minutes at TRANSITION_MET (2.0, Ainsworth 05160). EPOC continuity from lift-end.
+      // Cycle 0: pure TRANSITION_MET per spec §4.3.1 semantics mirrored from line.
+      // Skipped for non-ski and backcountry: no strap-in / boot-tighten phase at lift top.
+      let _sweatTransG = 0, _transCondensG = 0, _transExcessG = 0, _transStorage = 0;
+      if (_isResortSkiProfile) {
+        const _transEpoc = epocParams(_cycleMET, TRANSITION_MET);
+        for (let mn = 0; mn < TRANSITION_MIN; mn++) {
+          const _t = _liftLineMin + _liftMin + mn + 0.5;
+          const _METnow = c === 0
+            ? TRANSITION_MET
+            : TRANSITION_MET + _transEpoc.aFast * Math.exp(-_t / _transEpoc.tauFast) + _transEpoc.aSlow * Math.exp(-_t / _transEpoc.tauSlow);
+          const _shiv = shiveringBoost(_TambC, _METnow, _totalCLO + _tissueCLO, _bodyFatPct);
+          const _hcTrans = 8.3 * Math.sqrt(Math.max(0.5, _windMs));
+          const _RaTrans = 1 / _hcTrans;
+          const _iterTrans = iterativeTSkin(coreTemp, _TambC, _Rtissue, _Rclo, _RaTrans, _bsa, _METnow, _windMs, _humFrac * 100, _effectiveIm || 0.089, _bodyFatPct, 6, 0.1);
+          const _TskTrans = _iterTrans.T_skin;
+          const _QmTrans = computeMetabolicHeat(_METnow, _bodyMassKg);
+          const _QcTrans = computeConvectiveHeatLoss(_TskTrans, _TambC, _Rclo, _bsa, _windMs, 0);
+          const _TsTrans = _TskTrans - (_TskTrans - _TambC) * (_Rclo / (_Rclo + _RaTrans));
+          const _QrTrans = computeRadiativeHeatLoss(_TsTrans, _TambC, _bsa);
+          const _respTrans = computeRespiratoryHeatLoss(_METnow, _TambC, _humFrac * 100, _bodyMassKg, _faceCover);
+          const _M_Wm2_trans = _METnow * 58.2;
+          const _ediffTrans = computeEdiff(_M_Wm2_trans, 0, _Pa_ambient, _bsa);
+          const _QpTrans = _QcTrans + _QrTrans + _respTrans.total + _ediffTrans;
+          const _resTrans = _QmTrans - _QpTrans;
+          const _eReqTrans = Math.max(0, _resTrans);
+          const _emaxTrans = computeEmax(_TskTrans, _TambC, _humFrac * 100, _windMs, _effectiveIm || 0.089, _totalCLO, _bsa);
+          const _srTrans = computeSweatRate(_eReqTrans, _emaxTrans.eMax);
+          _sweatTransG += _srTrans.sweatGPerHr * (1 / 60);
+          const _transVaporMin = Math.min(_srTrans.sweatGPerHr, (_emaxTrans.eMax / L_V_J_PER_G) * 3600) / 60;
+          const _transSurfMin = _surfacePassHr / 60;
+          _transCondensG += Math.max(0, _transVaporMin - _transSurfMin);
+          _transExcessG += Math.max(0, _srTrans.sweatGPerHr / 60 - _transVaporMin);
+          _transStorage += (_resTrans - _srTrans.qEvapW) * 1;
+        }
+      }
+
+      _cumStorageWmin += _runStorage + _liftStorage + _lineStorage + _transStorage;
+      const _cycleTotalWmin = _runStorage + _liftStorage + _lineStorage + _transStorage;
       const _cycleTotalMin = _cycleMinRaw;
       const _cycleAvgW = _cycleTotalMin > 0 ? _cycleTotalWmin / _cycleTotalMin : 0;
       _perCycleHeatStorage.push(Math.round(_cycleAvgW * 10) / 10);
@@ -727,7 +818,9 @@ export function calcIntermittentMoisture(
       const _insensibleG = 10 * _cycleMinRaw / 60;
       const _runProdG = _srRun.sweatGPerHr * (_runMin / 60);
       const _liftProdG = _sweatLiftG;
-      const _cycleProdG = _runProdG + _liftProdG + _insensibleG;
+      const _lineProdG = _sweatLineG;  // 0 when line phase skipped (non-ski, BC, Tier 1)
+      const _transProdG = _sweatTransG;  // 0 when transition phase skipped (non-ski, BC)
+      const _cycleProdG = _runProdG + _liftProdG + _lineProdG + _transProdG + _insensibleG;
       _totalFluidLoss += _cycleProdG + _respRun.moistureGhr * (_cycleMinRaw / 60);
       const _cycleMin = _cycleMinRaw;
       const _outerL = _layers[_layers.length - 1]!;
@@ -755,7 +848,11 @@ export function calcIntermittentMoisture(
       const _retainedCondensG = _condensHr * _netRetention;
       const _liftRetainedG = _liftCondensG * _netRetention + _liftExcessG * _netRetention;
       const _liftFabricG = isNaN(_liftRetainedG) ? _liftProdG * 0.35 : _liftRetainedG;
-      const _fabricInG = (_retainedCondensG + _excessHr * _netRetention) * (_runMin / 60) + _liftFabricG + _insensibleG;
+      // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §5.8: line and transition phases contribute per-minute
+      // condensation + excess retention. Zero when phases skipped (non-ski, BC) — preserves bit-identical.
+      const _lineFabricG = _lineCondensG * _netRetention + _lineExcessG * _netRetention;
+      const _transFabricG = _transCondensG * _netRetention + _transExcessG * _netRetention;
+      const _fabricInG = (_retainedCondensG + _excessHr * _netRetention) * (_runMin / 60) + _liftFabricG + _lineFabricG + _transFabricG + _insensibleG;
 
       // Condensation placement by thermal gradient
       const _tSkinC = _TskRun;

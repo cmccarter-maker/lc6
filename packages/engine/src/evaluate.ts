@@ -410,7 +410,7 @@ function computeIREQSummary(input: EngineInput): IREQSummary {
  * Powder signal wiring (OpenSnow/OnTheSnow/NWS) is future scope per spec §7.3;
  * powderFlag=false here until that integration lands.
  */
-function computeResortCycleOverride(input: EngineInput): { totalCycles: number; cycleMin: number } | null {
+function computeResortCycleOverride(input: EngineInput): { totalCycles: number; cycleMin: number; liftLineMin: number } | null {
   const actId = input.activity.activity_id;
   if (actId !== 'skiing' && actId !== 'snowboarding') return null;
 
@@ -428,6 +428,7 @@ function computeResortCycleOverride(input: EngineInput): { totalCycles: number; 
     return {
       totalCycles: hist.runs_per_day,
       cycleMin: (hist.hours_per_day * 60) / hist.runs_per_day,
+      liftLineMin: 0,  // ski-history short-circuit: tier info not available; line phase skipped. Future: infer tier from history.
     };
   }
 
