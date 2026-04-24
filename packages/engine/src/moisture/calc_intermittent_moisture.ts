@@ -634,6 +634,8 @@ export function calcIntermittentMoisture(
     let _condensWeights: number[] = [];
 
     for (let c = 0; c < wholeCycles; c++) {
+      // PHY-031-CYCLEMIN-RECONCILIATION v1.1 §4.6: wall-clock cycle duration for "processes always on" buffer advancement. Phase A shim == _runMin + _liftMin; Phase B extends to _liftLineMin + _liftMin + TRANSITION_MIN + _runMin.
+      const _cycleMinRaw = _runMin + _liftMin;
       const _isWarmup = (c < _warmupCycles);
       const _cycleMET = _isWarmup ? _groomerMET : _METrun;
       const _cycleSpeedWMs = _isWarmup ? (_speedWindMs * 0.6) : _speedWindMs;
@@ -712,7 +714,7 @@ export function calcIntermittentMoisture(
       }
       _cumStorageWmin += _runStorage + _liftStorage;
       const _cycleTotalWmin = _runStorage + _liftStorage;
-      const _cycleTotalMin = _runMin + _liftMin;
+      const _cycleTotalMin = _cycleMinRaw;
       const _cycleAvgW = _cycleTotalMin > 0 ? _cycleTotalWmin / _cycleTotalMin : 0;
       _perCycleHeatStorage.push(Math.round(_cycleAvgW * 10) / 10);
       if (Math.abs(_cycleAvgW) > Math.abs(_peakCycleHeatBalanceW)) {
@@ -722,12 +724,12 @@ export function calcIntermittentMoisture(
       }
 
       // === PHY-048: PER-LAYER MOISTURE BUFFER ===
-      const _insensibleG = 10 * (_runMin + _liftMin) / 60;
+      const _insensibleG = 10 * _cycleMinRaw / 60;
       const _runProdG = _srRun.sweatGPerHr * (_runMin / 60);
       const _liftProdG = _sweatLiftG;
       const _cycleProdG = _runProdG + _liftProdG + _insensibleG;
-      _totalFluidLoss += _cycleProdG + _respRun.moistureGhr * (_runMin / 60);
-      const _cycleMin = _runMin + _liftMin;
+      _totalFluidLoss += _cycleProdG + _respRun.moistureGhr * (_cycleMinRaw / 60);
+      const _cycleMin = _cycleMinRaw;
       const _outerL = _layers[_layers.length - 1]!;
 
       // Condensation model (Yoo & Kim 2008)
@@ -930,7 +932,7 @@ export function calcIntermittentMoisture(
       _perPhaseHL.push({ phase: 'lift', cycle: c, hl: Math.round(_hlrScore * 1000) / 1000, hlWatts: Math.round(_liftHLwatts), residualW: Math.round(_liftStorage / Math.max(1, _liftMin)), fatigue: Math.round(_fatigue * 1000) / 1000 });
 
       // PHY-034: fatigue accumulation
-      const _cycleDurF = _runMin + _liftMin;
+      const _cycleDurF = _cycleMinRaw;
       if (cumMoisture >= CROSSOVER_LITERS) {
         const _fSev = Math.min(1, (cumMoisture - CROSSOVER_LITERS) / (FABRIC_CAPACITY_LITERS - CROSSOVER_LITERS));
         const _fResist = 1 - (_fatigue / MAX_FATIGUE);
