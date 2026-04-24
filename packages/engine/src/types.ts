@@ -521,6 +521,14 @@ export interface ActivitySpec {
   kayak_type?: "sit_on_top" | "sit_inside" | "creek";
   golf_cart_riding?: boolean;
   immersion_gear?: string;
+  /**
+   * Ski-session rest booleans per PHY-031-CYCLEMIN-RECONCILIATION v1.2 §6.3.
+   * `lunch` gates the 45-min shell-off indoor rest at 12:15 PM wall-clock.
+   * `other_break` gates the 15-min shell-on indoor rest at 2:30 PM wall-clock.
+   * Both default to `true` when durationHrs > 5 via `computeResortCycleOverride`.
+   */
+  lunch?: boolean;
+  other_break?: boolean;
 }
 
 export interface WeatherSlice {

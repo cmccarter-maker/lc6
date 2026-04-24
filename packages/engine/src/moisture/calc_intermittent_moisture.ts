@@ -204,6 +204,8 @@ interface FitnessProfile {
 interface CycleOverride {
   totalCycles?: number;
   liftLineMin?: number;  // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §4.1: tier-derived lift-line wait (minutes). Undefined for non-ski and ski-history short-circuit.
+  lunch?: boolean;       // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §6.3/§8.6: gate 45-min shell-off rest at 12:15 PM.
+  otherBreak?: boolean;  // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §6.3/§8.6: gate 15-min shell-on rest at 2:30 PM.
   elevFt?: number;
   perRunVertFt?: number;
   dewPointC?: number | null;
@@ -643,11 +645,179 @@ export function calcIntermittentMoisture(
     const _isResortSkiProfile = isSki && profileKey !== null && profileKey !== 'skiing_bc';
     const _liftLineMin = _isResortSkiProfile ? (_mutableCycleOverride?.liftLineMin ?? 0) : 0;
 
+    // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §6: session-level rest-phase placement.
+    // Deterministic 9:00 AM session start + fixed wall-clock targets per spec §6.5. Defaults wired
+    // via computeResortCycleOverride (spec §6.3). Non-resort-ski activities see `lunch`/`otherBreak`
+    // undefined → both `_lunchRequested` / `_otherBreakRequested` false → rest-phase code never
+    // executes, preserving non-ski bit-identical per spec v1.2 §9.5.
+    const SESSION_START_MIN = 9 * 60;               // 9:00 AM, deterministic per spec v1.2 §6.5 narrative
+    const LUNCH_TARGET_MIN = 12 * 60 + 15;          // 12:15 PM per spec §6.5
+    const BREAK_TARGET_MIN = 14 * 60 + 30;          // 2:30 PM per spec §6.5
+    const LUNCH_DURATION_MIN = 45;                  // per spec §6.4
+    const BREAK_DURATION_MIN = 15;                  // per spec §6.4
+    const LUNCH_MET = 1.5;                          // Ainsworth 13030 "sitting, eating" per spec §6.4
+    const BREAK_MET = 1.8;                          // Ainsworth 20030 "standing, talking" per spec §6.4
+    const INDOOR_TEMP_F = 68;                       // spec §6.4 (20°C = 68°F)
+    const INDOOR_TEMP_C = 20;                       // spec §6.4
+    const INDOOR_HUMIDITY = 40;                     // spec §6.4 (% RH)
+    const INDOOR_WIND_MS = 0;                       // spec §6.4 (still indoor air)
+    const INDOOR_WIND_MPH = 0;
+    const _lunchRequested = _isResortSkiProfile && (_mutableCycleOverride?.lunch ?? false);
+    const _otherBreakRequested = _isResortSkiProfile && (_mutableCycleOverride?.otherBreak ?? false);
+    const _sessionEndMin = SESSION_START_MIN + durationHrs * 60;
+    let _wallClockMin = SESSION_START_MIN;
+    let _lunchDone = false;
+    let _breakDone = false;
+    // Cross-cycle carry: after a rest phase ends, its T_skin seeds the NEXT cycle's CIVD snapshot
+    // per spec §6.7.3. Cleared after first consumption so subsequent cycles revert to the normal
+    // `_perCycleTSkin` last-element path.
+    let _prevTskinRestCarry: number | null = null;
+    // Indoor ambient water vapor partial pressure (Pa) for Ediff in rest phases.
+    const _Pa_indoor = pSatPa(INDOOR_TEMP_C) * (INDOOR_HUMIDITY / 100);
+
     for (let c = 0; c < wholeCycles; c++) {
       // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §4.6: wall-clock cycle duration for "processes always on" buffer advancement. 4-phase for resort ski (line+lift+transition+run), 2-phase otherwise (run+lift).
       const _cycleMinRaw = _isResortSkiProfile
         ? _liftLineMin + _liftMin + TRANSITION_MIN + _runMin
         : _runMin + _liftMin;
+
+      // === REST-PHASE PLACEMENT (spec v1.2 §6.5-§6.7) ===
+      // Before running cycle c's phase physics, check if a rest target falls within this cycle's
+      // wall-clock window [_wallClockMin, _wallClockMin + _cycleMinRaw]. If so, run the rest phase,
+      // drain the moisture buffer under indoor conditions, advance the wall-clock, and carry
+      // the rest-end T_skin into the upcoming cycle's CIVD snapshot per §6.7.3.
+      const _cycleEndWallClock = _wallClockMin + _cycleMinRaw;
+
+      // Lunch (shell-off, 45 min, MET 1.5, spec §6.7.1).
+      if (_lunchRequested && !_lunchDone
+          && LUNCH_TARGET_MIN >= _wallClockMin
+          && LUNCH_TARGET_MIN < _cycleEndWallClock
+          && LUNCH_TARGET_MIN < _sessionEndMin) {
+        const _shellLayer = _layers[_layers.length - 1]!;
+        const _innerLayers = _layers.slice(0, _layers.length - 1);
+        // Spec §6.7.1: _Rclo_lunch = _Rclo × (1 - shellCLOfraction). Engine uses uniform per-layer
+        // CLO (line 765 _RcloHalf convention); 1/_layers.length approximates shell's share.
+        const _shellCLOfraction = _layers.length > 0 ? 1 / _layers.length : 0;
+        const _Rclo_lunch = _totalCLO * 0.155 * (1 - _shellCLOfraction);  // pre-cumMoisture-degradation — CLO-only; rest phase re-enters a fresh-buffer regime as drying is the event
+        const _totalCLO_lunch = _totalCLO * (1 - _shellCLOfraction);
+        const _effectiveIm_lunch = _innerLayers.length > 0
+          ? _innerLayers.length / _innerLayers.reduce((s, L) => s + 1 / Math.max(0.001, L.im), 0)
+          : (_effectiveIm ?? 0.089);
+        const _coreTempLunchEntry = estimateCoreTemp(LC5_T_CORE_BASE, _cumStorageWmin, _bodyMassKg);
+        const _prevTskinForLunch = _perCycleTSkin.length > 0 ? _perCycleTSkin[_perCycleTSkin.length - 1]! : 33.7;
+        const _RtissueLunchEntry = computeRtissueFromCIVD(civdProtectionFromSkin(_prevTskinForLunch));
+        let _lunchStorage = 0;
+        let _sweatLunchG = 0;
+        let _respLunchGhrAccum = 0;
+        let _TskLunchEnd = 33.7;
+        for (let mn = 0; mn < LUNCH_DURATION_MIN; mn++) {
+          const _hcLunch = 8.3 * Math.sqrt(Math.max(0.5, INDOOR_WIND_MS));
+          const _RaLunch = 1 / _hcLunch;
+          const _iterLunch = iterativeTSkin(_coreTempLunchEntry, INDOOR_TEMP_C, _RtissueLunchEntry, _Rclo_lunch, _RaLunch, _bsa, LUNCH_MET, INDOOR_WIND_MS, INDOOR_HUMIDITY, _effectiveIm_lunch, _bodyFatPct, 6, 0.1);
+          const _TskLunch = _iterLunch.T_skin;
+          _TskLunchEnd = _TskLunch;
+          const _QmLunch = computeMetabolicHeat(LUNCH_MET, _bodyMassKg);
+          const _QcLunch = computeConvectiveHeatLoss(_TskLunch, INDOOR_TEMP_C, _Rclo_lunch, _bsa, INDOOR_WIND_MS, 0);
+          const _TsLunch = _TskLunch - (_TskLunch - INDOOR_TEMP_C) * (_Rclo_lunch / (_Rclo_lunch + _RaLunch));
+          const _QrLunch = computeRadiativeHeatLoss(_TsLunch, INDOOR_TEMP_C, _bsa);
+          const _respLunch = computeRespiratoryHeatLoss(LUNCH_MET, INDOOR_TEMP_C, INDOOR_HUMIDITY, _bodyMassKg, _faceCover);
+          _respLunchGhrAccum += _respLunch.moistureGhr;
+          const _M_Wm2_lunch = LUNCH_MET * 58.2;
+          const _ediffLunch = computeEdiff(_M_Wm2_lunch, 0, _Pa_indoor, _bsa);
+          const _QpLunch = _QcLunch + _QrLunch + _respLunch.total + _ediffLunch;
+          const _resLunch = _QmLunch - _QpLunch;
+          const _eReqLunch = Math.max(0, _resLunch);
+          const _emaxLunch = computeEmax(_TskLunch, INDOOR_TEMP_C, INDOOR_HUMIDITY, INDOOR_WIND_MS, _effectiveIm_lunch, _totalCLO_lunch, _bsa);
+          const _srLunch = computeSweatRate(_eReqLunch, _emaxLunch.eMax);
+          _sweatLunchG += _srLunch.sweatGPerHr * (1 / 60);
+          _lunchStorage += (_resLunch - _srLunch.qEvapW) * 1;
+          // Inner-layer drying per spec §6.7.1 — each inner layer drains directly against indoor.
+          for (let _li = 0; _li < _innerLayers.length; _li++) {
+            const _L = _layers[_li]!;
+            const _drainRate_L = getDrainRate(INDOOR_TEMP_F, INDOOR_HUMIDITY, INDOOR_WIND_MPH, _L.im, _Rclo_lunch, _bsa);
+            const _drainG_L = _drainRate_L * (1 / 60) * Math.min(1, _L.cap > 0 ? _L.buffer / _L.cap : 0);
+            _L.buffer = Math.max(0, _L.buffer - _drainG_L);
+          }
+          // Shell draped drain per spec §6.7.1 — 2× factor for both-sides exposure, Rclo=0 (detached).
+          const _drainRate_shell = 2 * getDrainRate(INDOOR_TEMP_F, INDOOR_HUMIDITY, INDOOR_WIND_MPH, _shellLayer.im, 0, _bsa);
+          const _drainG_shell = _drainRate_shell * (1 / 60) * Math.min(1, _shellLayer.cap > 0 ? _shellLayer.buffer / _shellLayer.cap : 0);
+          _shellLayer.buffer = Math.max(0, _shellLayer.buffer - _drainG_shell);
+        }
+        // Post-lunch aHygro against insulative (outermost of inner ensemble while shell off) per spec §6.7.1.
+        if (_innerLayers.length > 0) {
+          const _insulativeLike = _layers[_innerLayers.length - 1]!;
+          const _aHygro_lunch = hygroAbsorption(INDOOR_TEMP_F, INDOOR_HUMIDITY, _insulativeLike.im, DEFAULT_REGAIN_POLYESTER);
+          _insulativeLike.buffer += _aHygro_lunch * 1000 * (LUNCH_DURATION_MIN / 60);
+          _insulativeLike.buffer = Math.min(_insulativeLike.buffer, _insulativeLike.cap);
+        }
+        // Shared post-rest bookkeeping per spec §6.7.3.
+        const _insensibleLunch = 10 * LUNCH_DURATION_MIN / 60;
+        _totalFluidLoss += _sweatLunchG + _insensibleLunch + _respLunchGhrAccum * (1 / 60);
+        _cumStorageWmin += _lunchStorage;
+        _prevTskinRestCarry = _TskLunchEnd;
+        // Refresh running cumMoisture from the now-drained layer buffers.
+        cumMoisture = _layers.reduce((s, L) => s + L.buffer, 0) / 1000;
+        _wallClockMin += LUNCH_DURATION_MIN;
+        _lunchDone = true;
+      }
+
+      // otherBreak (shell-on, 15 min, MET 1.8, spec §6.7.2).
+      if (_otherBreakRequested && !_breakDone
+          && BREAK_TARGET_MIN >= _wallClockMin
+          && BREAK_TARGET_MIN < _cycleEndWallClock
+          && BREAK_TARGET_MIN < _sessionEndMin) {
+        const _shellLayer = _layers[_layers.length - 1]!;
+        const _effectiveIm_break = _effectiveIm ?? 0.089;
+        const _Rclo_break = _totalCLO * 0.155;  // full-ensemble worn
+        const _coreTempBreakEntry = estimateCoreTemp(LC5_T_CORE_BASE, _cumStorageWmin, _bodyMassKg);
+        const _prevTskinForBreak = _prevTskinRestCarry !== null
+          ? _prevTskinRestCarry
+          : (_perCycleTSkin.length > 0 ? _perCycleTSkin[_perCycleTSkin.length - 1]! : 33.7);
+        const _RtissueBreakEntry = computeRtissueFromCIVD(civdProtectionFromSkin(_prevTskinForBreak));
+        let _breakStorage = 0;
+        let _sweatBreakG = 0;
+        let _respBreakGhrAccum = 0;
+        let _TskBreakEnd = 33.7;
+        for (let mn = 0; mn < BREAK_DURATION_MIN; mn++) {
+          const _hcBreak = 8.3 * Math.sqrt(Math.max(0.5, INDOOR_WIND_MS));
+          const _RaBreak = 1 / _hcBreak;
+          const _iterBreak = iterativeTSkin(_coreTempBreakEntry, INDOOR_TEMP_C, _RtissueBreakEntry, _Rclo_break, _RaBreak, _bsa, BREAK_MET, INDOOR_WIND_MS, INDOOR_HUMIDITY, _effectiveIm_break, _bodyFatPct, 6, 0.1);
+          const _TskBreak = _iterBreak.T_skin;
+          _TskBreakEnd = _TskBreak;
+          const _QmBreak = computeMetabolicHeat(BREAK_MET, _bodyMassKg);
+          const _QcBreak = computeConvectiveHeatLoss(_TskBreak, INDOOR_TEMP_C, _Rclo_break, _bsa, INDOOR_WIND_MS, 0);
+          const _TsBreak = _TskBreak - (_TskBreak - INDOOR_TEMP_C) * (_Rclo_break / (_Rclo_break + _RaBreak));
+          const _QrBreak = computeRadiativeHeatLoss(_TsBreak, INDOOR_TEMP_C, _bsa);
+          const _respBreak = computeRespiratoryHeatLoss(BREAK_MET, INDOOR_TEMP_C, INDOOR_HUMIDITY, _bodyMassKg, _faceCover);
+          _respBreakGhrAccum += _respBreak.moistureGhr;
+          const _M_Wm2_break = BREAK_MET * 58.2;
+          const _ediffBreak = computeEdiff(_M_Wm2_break, 0, _Pa_indoor, _bsa);
+          const _QpBreak = _QcBreak + _QrBreak + _respBreak.total + _ediffBreak;
+          const _resBreak = _QmBreak - _QpBreak;
+          const _eReqBreak = Math.max(0, _resBreak);
+          const _emaxBreak = computeEmax(_TskBreak, INDOOR_TEMP_C, INDOOR_HUMIDITY, INDOOR_WIND_MS, _effectiveIm_break, _totalCLO, _bsa);
+          const _srBreak = computeSweatRate(_eReqBreak, _emaxBreak.eMax);
+          _sweatBreakG += _srBreak.sweatGPerHr * (1 / 60);
+          _breakStorage += (_resBreak - _srBreak.qEvapW) * 1;
+          // Shell on-body drain per spec §6.7.2.
+          const _drainRate_shell = getDrainRate(INDOOR_TEMP_F, INDOOR_HUMIDITY, INDOOR_WIND_MPH, _shellLayer.im, _totalCLO, _bsa);
+          const _drainG_shell = _drainRate_shell * (1 / 60) * Math.min(1, _shellLayer.cap > 0 ? _shellLayer.buffer / _shellLayer.cap : 0);
+          _shellLayer.buffer = Math.max(0, _shellLayer.buffer - _drainG_shell);
+        }
+        // Post-break aHygro against shell (outermost worn) per spec §6.7.2.
+        const _aHygro_break = hygroAbsorption(INDOOR_TEMP_F, INDOOR_HUMIDITY, _shellLayer.im, DEFAULT_REGAIN_POLYESTER);
+        _shellLayer.buffer += _aHygro_break * 1000 * (BREAK_DURATION_MIN / 60);
+        _shellLayer.buffer = Math.min(_shellLayer.buffer, _shellLayer.cap);
+        // Shared post-rest bookkeeping per spec §6.7.3.
+        const _insensibleBreak = 10 * BREAK_DURATION_MIN / 60;
+        _totalFluidLoss += _sweatBreakG + _insensibleBreak + _respBreakGhrAccum * (1 / 60);
+        _cumStorageWmin += _breakStorage;
+        _prevTskinRestCarry = _TskBreakEnd;
+        cumMoisture = _layers.reduce((s, L) => s + L.buffer, 0) / 1000;
+        _wallClockMin += BREAK_DURATION_MIN;
+        _breakDone = true;
+      }
+
       const _isWarmup = (c < _warmupCycles);
       const _cycleMET = _isWarmup ? _groomerMET : _METrun;
       const _cycleSpeedWMs = _isWarmup ? (_speedWindMs * 0.6) : _speedWindMs;
@@ -659,9 +829,14 @@ export function calcIntermittentMoisture(
       // PHY-070a: CIVD is skin-driven (Veicsteinas 1982, Young 1996).
       // Use previous cycle's T_skin to avoid circular dependency within iterativeTSkin.
       // Seed cycle 0 with Gagge neutral skin (33.7°C) since no prior exists.
-      const _prevTskin = (_perCycleTSkin.length > 0)
-        ? _perCycleTSkin[_perCycleTSkin.length - 1]!
-        : 33.7;
+      // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §6.7.3: if a rest phase just ran, its end-state
+      // T_skin takes priority over the cycle-array tail for this cycle's CIVD snapshot.
+      const _prevTskin = _prevTskinRestCarry !== null
+        ? _prevTskinRestCarry
+        : (_perCycleTSkin.length > 0
+          ? _perCycleTSkin[_perCycleTSkin.length - 1]!
+          : 33.7);
+      _prevTskinRestCarry = null;
       const _civdCycle = civdProtectionFromSkin(_prevTskin);
       const _Rtissue = computeRtissueFromCIVD(_civdCycle);
 
@@ -702,30 +877,6 @@ export function calcIntermittentMoisture(
           _lineStorage += (_resLine - _srLine.qEvapW) * 1;
         }
       }
-
-      // === RUN PHASE: Energy Balance ===
-      const _hcRun = 8.3 * Math.sqrt(Math.max(0.5, _windMs + _cycleSpeedWMs));
-      const _RaRun = 1 / _hcRun;
-      const _iterRun = iterativeTSkin(coreTemp, _TambC, _Rtissue, _Rclo, _RaRun, _bsa, _cycleMET, _windMs + _cycleSpeedWMs, _humFrac * 100, _effectiveIm || 0.089, _bodyFatPct, 8, 0.1);
-      const _TskRun = _iterRun.T_skin;
-      const _Qmet = computeMetabolicHeat(_cycleMET, _bodyMassKg);
-      const _QconvRun = computeConvectiveHeatLoss(_TskRun, _TambC, _Rclo, _bsa, _windMs, _cycleSpeedWMs);
-      const _TsurfRun = _TskRun - (_TskRun - _TambC) * (_Rclo / (_Rclo + _RaRun));
-      const _QradRun = computeRadiativeHeatLoss(_TsurfRun, _TambC, _bsa);
-      // DEC-024 site 1: _humFrac → _humFrac*100
-      const _respRun = computeRespiratoryHeatLoss(_cycleMET, _TambC, _humFrac * 100, _bodyMassKg, _faceCover);
-      // PHY-069: E_diff per ISO 7730 (was flat +7W)
-      const _M_Wm2_run = _cycleMET * 58.2;
-      const _ediffRun = computeEdiff(_M_Wm2_run, 0, _Pa_ambient, _bsa);
-      const _QpassRun = _QconvRun + _QradRun + _respRun.total + _ediffRun;
-      const _residRun = _Qmet - _QpassRun;
-      const _eReqRun = Math.max(0, _residRun);
-      const _emaxRun = computeEmax(_TskRun, _TambC, _humFrac * 100, _windMs + _cycleSpeedWMs, _effectiveIm || 0.089, _totalCLO, _bsa);
-      const _srRun = computeSweatRate(_eReqRun, _emaxRun.eMax);
-      _sweatRateRunGhr = _srRun.sweatGPerHr;
-      const _sweatRunG = _sweatRateRunGhr * (_runMin / 60);
-      const _runNetHeat = _residRun - _srRun.qEvapW;
-      const _runStorage = _runNetHeat * _runMin;
 
       // === LIFT PHASE: Sub-stepped with EPOC decay (continuity from line-end per spec v1.2 §4.3.1) ===
       const _cycleEpoc = epocParams(_cycleMET, _METlift);
@@ -802,6 +953,34 @@ export function calcIntermittentMoisture(
           _transStorage += (_resTrans - _srTrans.qEvapW) * 1;
         }
       }
+
+      // === RUN PHASE: Energy Balance [wall-clock last per spec v1.2 §4.2] ===
+      // Single-step integration at _cycleMET over _runMin minutes with descent-speed-added wind.
+      // Outputs (_TskRun, _srRun, _emaxRun, _hcRun, _respRun) feed the post-cycle condensation /
+      // moisture-buffer sections. Placed after LINE/LIFT/TRANSITION so code order tracks wall-clock
+      // order (spec v1.2 §9.4 item 1 structural audit).
+      const _hcRun = 8.3 * Math.sqrt(Math.max(0.5, _windMs + _cycleSpeedWMs));
+      const _RaRun = 1 / _hcRun;
+      const _iterRun = iterativeTSkin(coreTemp, _TambC, _Rtissue, _Rclo, _RaRun, _bsa, _cycleMET, _windMs + _cycleSpeedWMs, _humFrac * 100, _effectiveIm || 0.089, _bodyFatPct, 8, 0.1);
+      const _TskRun = _iterRun.T_skin;
+      const _Qmet = computeMetabolicHeat(_cycleMET, _bodyMassKg);
+      const _QconvRun = computeConvectiveHeatLoss(_TskRun, _TambC, _Rclo, _bsa, _windMs, _cycleSpeedWMs);
+      const _TsurfRun = _TskRun - (_TskRun - _TambC) * (_Rclo / (_Rclo + _RaRun));
+      const _QradRun = computeRadiativeHeatLoss(_TsurfRun, _TambC, _bsa);
+      // DEC-024 site 1: _humFrac → _humFrac*100
+      const _respRun = computeRespiratoryHeatLoss(_cycleMET, _TambC, _humFrac * 100, _bodyMassKg, _faceCover);
+      // PHY-069: E_diff per ISO 7730 (was flat +7W)
+      const _M_Wm2_run = _cycleMET * 58.2;
+      const _ediffRun = computeEdiff(_M_Wm2_run, 0, _Pa_ambient, _bsa);
+      const _QpassRun = _QconvRun + _QradRun + _respRun.total + _ediffRun;
+      const _residRun = _Qmet - _QpassRun;
+      const _eReqRun = Math.max(0, _residRun);
+      const _emaxRun = computeEmax(_TskRun, _TambC, _humFrac * 100, _windMs + _cycleSpeedWMs, _effectiveIm || 0.089, _totalCLO, _bsa);
+      const _srRun = computeSweatRate(_eReqRun, _emaxRun.eMax);
+      _sweatRateRunGhr = _srRun.sweatGPerHr;
+      const _sweatRunG = _sweatRateRunGhr * (_runMin / 60);
+      const _runNetHeat = _residRun - _srRun.qEvapW;
+      const _runStorage = _runNetHeat * _runMin;
 
       _cumStorageWmin += _runStorage + _liftStorage + _lineStorage + _transStorage;
       const _cycleTotalWmin = _runStorage + _liftStorage + _lineStorage + _transStorage;
@@ -1054,6 +1233,10 @@ export function calcIntermittentMoisture(
       _perCycleCoreTemp.push(Math.round(_coreNow * 100) / 100);
       _perCycleCIVD.push(Math.round(civdProtectionFromSkin(_TskRun) * 100) / 100);
       _perCycleTSkin.push(Math.round(_TskRun * 10) / 10);
+
+      // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §6.5: advance wall-clock tracker by _cycleMinRaw.
+      // Rest-phase insertions (lunch, otherBreak) advance it separately above.
+      _wallClockMin += _cycleMinRaw;
     }
 
     // Fractional last cycle

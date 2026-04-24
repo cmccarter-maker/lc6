@@ -410,7 +410,7 @@ function computeIREQSummary(input: EngineInput): IREQSummary {
  * Powder signal wiring (OpenSnow/OnTheSnow/NWS) is future scope per spec §7.3;
  * powderFlag=false here until that integration lands.
  */
-function computeResortCycleOverride(input: EngineInput): { totalCycles: number; cycleMin: number; liftLineMin: number } | null {
+function computeResortCycleOverride(input: EngineInput): { totalCycles: number; cycleMin: number; liftLineMin: number; lunch: boolean; otherBreak: boolean } | null {
   const actId = input.activity.activity_id;
   if (actId !== 'skiing' && actId !== 'snowboarding') return null;
 
@@ -419,6 +419,13 @@ function computeResortCycleOverride(input: EngineInput): { totalCycles: number; 
   // Only the 5 lift-served resort terrains from spec §3.1 apply.
   const resortTerrains: SkiTerrain[] = ['groomers', 'moguls', 'trees', 'bowls', 'park'];
   if (!terrain || !resortTerrains.includes(terrain as SkiTerrain)) return null;
+
+  // PHY-031-CYCLEMIN-RECONCILIATION v1.2 §6.3: rest defaults for durations > 5 hr.
+  // Explicit user input (`input.activity.lunch`, `input.activity.other_break`) overrides defaults.
+  const seg = input.activity.segments[0]!;
+  const defaultRest = seg.duration_hr > 5;
+  const lunch = input.activity.lunch ?? defaultRest;
+  const otherBreak = input.activity.other_break ?? defaultRest;
 
   // PHY-031 §8: if user has supplied ski history, override the calendar entirely.
   // Spec §8.1: history replaces cycle COUNT; per-cycle physics untouched.
@@ -429,12 +436,14 @@ function computeResortCycleOverride(input: EngineInput): { totalCycles: number; 
       totalCycles: hist.runs_per_day,
       cycleMin: (hist.hours_per_day * 60) / hist.runs_per_day,
       liftLineMin: 0,  // ski-history short-circuit: tier info not available; line phase skipped. Future: infer tier from history.
+      lunch,
+      otherBreak,
     };
   }
 
   const crowdTier = getCrowdFactor(input.activity.date_iso, /* powderFlag */ false);
-  const seg = input.activity.segments[0]!;
-  return computeCycle(crowdTier, terrain as SkiTerrain, seg.duration_hr);
+  const cycle = computeCycle(crowdTier, terrain as SkiTerrain, seg.duration_hr);
+  return { ...cycle, lunch, otherBreak };
 }
 
 

@@ -141,7 +141,17 @@ const P5: SkiVector = {
 function runSkiVector(v: SkiVector) {
   const crowdTier = getCrowdFactor(v.date, v.powderFlag);
   const cycle = computeCycle(crowdTier, v.terrain, 8.5);
-  const cycleOverride = { totalCycles: cycle.totalCycles, cycleMin: cycle.cycleMin };
+  // Post-S31 (spec v1.2 §4 & §6): cycleOverride carries liftLineMin (tier-derived) and
+  // lunch/otherBreak booleans so the full 4-phase decomposition + rest-phase insertion
+  // exercises during spec-lock ski vector runs. evaluate.ts wires these via
+  // computeResortCycleOverride per spec §6.3 defaults (true for durationHrs > 5).
+  const cycleOverride = {
+    totalCycles: cycle.totalCycles,
+    cycleMin: cycle.cycleMin,
+    liftLineMin: cycle.liftLineMin,
+    lunch: true,        // 8.5-hr session > 5 → default true per spec §6.3
+    otherBreak: true,
+  };
 
   const result = calcIntermittentMoisture(
     /* 0: activity */         'snowboarding',
