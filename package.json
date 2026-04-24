@@ -8,7 +8,8 @@
     "test": "pnpm -r test",
     "test:engine": "pnpm --filter @lc6/engine test",
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "dev:web": "pnpm --filter @lc6/web dev"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
