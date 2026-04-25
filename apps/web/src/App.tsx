@@ -7,6 +7,7 @@ import type {
   PillResult,
   ClinicalStage,
 } from '@lc6/engine';
+import { TrajectoryChart } from './TrajectoryChart.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Hardcoded test input — Breck snowboarding 16°F 6hrs
@@ -242,6 +243,8 @@ export function App() {
         <PillCard pill={fp.optimal_gear} />
         <PillCard pill={fp.best_outcome} />
       </div>
+
+      <TrajectoryChart trajectory={fp.your_gear.trajectory} />
 
       <div className="preview-disclosure">
         <div className="preview-disclosure-title">
