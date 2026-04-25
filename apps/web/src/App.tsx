@@ -1,94 +1,33 @@
+import { useState } from 'react';
 import { evaluate } from '@lc6/engine';
 import type {
-  EngineInput,
-  WeatherSlice,
-  GearEnsemble,
-  EngineGearItem,
   PillResult,
   ClinicalStage,
 } from '@lc6/engine';
 import { TrajectoryChart } from './TrajectoryChart.js';
+import { InputForm } from './InputForm.js';
+import { buildEngineInput } from './buildEngineInput.js';
+import type { FormState } from './buildEngineInput.js';
+import { getPresetById } from './gearPresets.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Hardcoded test input — Breck snowboarding 16°F 6hrs
-// Replicated from packages/engine/tests/evaluate/evaluate.test.ts makeBreckInput.
-// S-UI-02+ will replace with user input form.
+// Initial form state — matches S-UI-02c hardcoded Breck snowboarding scenario.
+// First render is identical to S-UI-02c output before any user interaction.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const COLD_WEATHER: WeatherSlice = {
-  t_start: 0,
-  t_end: 21600,
+const INITIAL_FORM_STATE: FormState = {
+  activity_id: 'snowboarding',
+  date_iso: '2026-02-03',
+  duration_hr: 6,
   temp_f: 16,
   humidity: 45,
   wind_mph: 10,
   precip_probability: 0,
-};
-
-function makeGearItem(
-  slot: EngineGearItem['slot'],
-  clo: number,
-  im: number,
-): EngineGearItem {
-  return {
-    product_id: `test-${slot}`,
-    name: `Test ${slot}`,
-    slot,
-    clo,
-    im,
-    fiber: 'synthetic',
-  };
-}
-
-const BRECK_ENSEMBLE: GearEnsemble = {
-  ensemble_id: 'breck-test',
-  label: 'Breck Snowboarding Kit',
-  items: [
-    makeGearItem('base', 0.3, 0.4),
-    makeGearItem('mid', 0.5, 0.35),
-    makeGearItem('insulative', 0.8, 0.25),
-    makeGearItem('shell', 0.3, 0.15),
-    makeGearItem('legwear', 0.5, 0.3),
-    makeGearItem('footwear', 0.4, 0.2),
-    makeGearItem('headgear', 0.2, 0.3),
-    makeGearItem('handwear', 0.3, 0.25),
-  ],
-  total_clo: 2.5,
-  ensemble_im: 0.25,
-};
-
-const BRECK_INPUT: EngineInput = {
-  activity: {
-    activity_id: 'snowboarding',
-    duration_hr: 6,
-    date_iso: '2026-02-03',
-    snow_terrain: 'groomers',
-    segments: [
-      {
-        segment_id: 'seg-1',
-        segment_label: 'Breck Groomers',
-        activity_id: 'snowboarding',
-        duration_hr: 6,
-        weather: [COLD_WEATHER],
-      },
-    ],
-  },
-  location: {
-    lat: 39.48,
-    lng: -106.07,
-    elevation_ft: 9600,
-  },
-  biometrics: {
-    sex: 'male',
-    weight_lb: 180,
-  },
-  user_ensemble: BRECK_ENSEMBLE,
+  ensemble: getPresetById('snowboarding_standard').ensemble,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Risk-tier mapping helpers
-// Maps engine's 0-10 risk metrics to 3 UI tiers (low/elevated/critical).
-// Aligned with LC4 era 5-tier risk → simplified for "basic polish" UI scope.
-// Future polish session can expand to full 5-tier (low/elevated/moderate/high/critical).
+// Risk-tier mapping helpers (unchanged from S-UI-02b)
 // ═══════════════════════════════════════════════════════════════════════════
 
 type RiskTier = 'low' | 'elevated' | 'critical';
@@ -103,8 +42,6 @@ function tierClass(tier: RiskTier): string {
   return `tier-${tier}`;
 }
 
-// Stages worth tagging visually as elevated/critical clinical concern.
-// Anything other than thermal_neutral is at least "elevated" for tag display.
 function tierForClinicalStage(stage: ClinicalStage): RiskTier {
   if (stage === 'thermal_neutral') return 'low';
   if (
@@ -118,7 +55,6 @@ function tierForClinicalStage(stage: ClinicalStage): RiskTier {
   return 'elevated';
 }
 
-// Display labels — engine uses snake_case, UI uses Title Case
 const PILL_LABELS: Record<PillResult['pill_id'], string> = {
   your_gear: 'Your Gear',
   pacing: 'Pacing',
@@ -126,10 +62,6 @@ const PILL_LABELS: Record<PillResult['pill_id'], string> = {
   best_outcome: 'Best Outcome',
 };
 
-// SEMANTICALLY-STUBBED pills per SessionA Output A.
-// These pills are object-spreads of their paired pills with uses_pacing
-// flipped — same underlying values, no independent computation yet.
-// Future session that wires precognitive_cm → ventEvents will make these real.
 const STUBBED_PILL_IDS: ReadonlyArray<PillResult['pill_id']> = [
   'pacing',
   'best_outcome',
@@ -140,7 +72,7 @@ function isStubbedPill(pillId: PillResult['pill_id']): boolean {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PillCard — single pill display
+// PillCard (unchanged from S-UI-02b)
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface PillCardProps {
@@ -196,40 +128,56 @@ function PillCard({ pill }: PillCardProps) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// App — runs evaluate() once, renders four pills + scenario meta + disclosure
+// App — stateful container; form drives the engine call
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function App() {
-  const result = evaluate(BRECK_INPUT);
+  // formState is the source of truth for both form display AND the active result.
+  // On Run click, formState updates → useMemo recomputes evaluate() → re-render.
+  const [formState, setFormState] = useState<FormState>(INITIAL_FORM_STATE);
+
+  // Compute fresh on every formState change. evaluate() is pure and fast.
+  const result = evaluate(buildEngineInput(formState));
   const fp = result.four_pill;
+
+  // Activity label for scenario meta strip — pulled from form state.
+  const activityLabel = formState.activity_id
+    .split('_')
+    .map(w => w[0]?.toUpperCase() + w.slice(1))
+    .join(' ');
 
   return (
     <div className="page">
       <header className="page-header">
         <h1 className="page-title">LayerCraft v6</h1>
         <p className="page-subtitle">
-          Engine smoke test — four-pill recommendation surface
+          Engine smoke test — interactive trip configuration
         </p>
       </header>
+
+      <InputForm
+        initialState={INITIAL_FORM_STATE}
+        onRun={setFormState}
+      />
 
       <div className="scenario-meta">
         <div className="scenario-meta-item">
           <span className="scenario-meta-label">Activity</span>
-          <span className="scenario-meta-value">Snowboarding</span>
+          <span className="scenario-meta-value">{activityLabel}</span>
         </div>
         <div className="scenario-meta-item">
-          <span className="scenario-meta-label">Location</span>
-          <span className="scenario-meta-value">Breckenridge</span>
+          <span className="scenario-meta-label">Date</span>
+          <span className="scenario-meta-value">{formState.date_iso}</span>
         </div>
         <div className="scenario-meta-item">
           <span className="scenario-meta-label">Conditions</span>
           <span className="scenario-meta-value">
-            16°F · 45% RH · 10 mph
+            {formState.temp_f}°F · {formState.humidity}% RH · {formState.wind_mph} mph
           </span>
         </div>
         <div className="scenario-meta-item">
           <span className="scenario-meta-label">Duration</span>
-          <span className="scenario-meta-value">6 hours</span>
+          <span className="scenario-meta-value">{formState.duration_hr} hours</span>
         </div>
         <div className="scenario-meta-item">
           <span className="scenario-meta-label">Engine</span>
