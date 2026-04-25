@@ -4,12 +4,14 @@ import type {
   WeatherSlice,
   GearEnsemble,
   EngineGearItem,
+  PillResult,
+  ClinicalStage,
 } from '@lc6/engine';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Hardcoded test input — Breck snowboarding 16°F 6hrs
 // Replicated from packages/engine/tests/evaluate/evaluate.test.ts makeBreckInput.
-// S-UI-01 scope: prove plumbing. S-UI-02+ will replace with user input form.
+// S-UI-02+ will replace with user input form.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const COLD_WEATHER: WeatherSlice = {
@@ -82,53 +84,174 @@ const BRECK_INPUT: EngineInput = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// App component — runs evaluate() once on mount, renders result
+// Risk-tier mapping helpers
+// Maps engine's 0-10 risk metrics to 3 UI tiers (low/elevated/critical).
+// Aligned with LC4 era 5-tier risk → simplified for "basic polish" UI scope.
+// Future polish session can expand to full 5-tier (low/elevated/moderate/high/critical).
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function App() {
-  // Synchronous call — evaluate() is pure and fast enough to run at render time.
-  // If it throws, the error bubbles to React's error boundary (the browser
-  // surfaces it). S-UI-01 does NOT wrap in try/catch per scope.
-  const result = evaluate(BRECK_INPUT);
+type RiskTier = 'low' | 'elevated' | 'critical';
+
+function tierForRiskScore(value: number): RiskTier {
+  if (value < 3) return 'low';
+  if (value < 6) return 'elevated';
+  return 'critical';
+}
+
+function tierClass(tier: RiskTier): string {
+  return `tier-${tier}`;
+}
+
+// Stages worth tagging visually as elevated/critical clinical concern.
+// Anything other than thermal_neutral is at least "elevated" for tag display.
+function tierForClinicalStage(stage: ClinicalStage): RiskTier {
+  if (stage === 'thermal_neutral') return 'low';
+  if (
+    stage === 'severe_hypothermia' ||
+    stage === 'mild_hypothermia_deteriorating' ||
+    stage === 'heat_stroke' ||
+    stage === 'heat_exhaustion_deteriorating'
+  ) {
+    return 'critical';
+  }
+  return 'elevated';
+}
+
+// Display labels — engine uses snake_case, UI uses Title Case
+const PILL_LABELS: Record<PillResult['pill_id'], string> = {
+  your_gear: 'Your Gear',
+  pacing: 'Pacing',
+  optimal_gear: 'Optimal Gear',
+  best_outcome: 'Best Outcome',
+};
+
+// SEMANTICALLY-STUBBED pills per SessionA Output A.
+// These pills are object-spreads of their paired pills with uses_pacing
+// flipped — same underlying values, no independent computation yet.
+// Future session that wires precognitive_cm → ventEvents will make these real.
+const STUBBED_PILL_IDS: ReadonlyArray<PillResult['pill_id']> = [
+  'pacing',
+  'best_outcome',
+];
+
+function isStubbedPill(pillId: PillResult['pill_id']): boolean {
+  return STUBBED_PILL_IDS.includes(pillId);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PillCard — single pill display
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface PillCardProps {
+  pill: PillResult;
+}
+
+function PillCard({ pill }: PillCardProps) {
+  const summary = pill.trajectory_summary;
+  const mrTier = tierForRiskScore(summary.peak_MR);
+  const hlrTier = tierForRiskScore(summary.peak_HLR);
+  const cdiTier = tierForRiskScore(summary.peak_CDI);
+  const stageTier = tierForClinicalStage(summary.peak_clinical_stage);
+  const stubbed = isStubbedPill(pill.pill_id);
 
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: 24, maxWidth: 720 }}>
-      <h1 style={{ margin: 0 }}>LayerCraft v6</h1>
-      <p style={{ color: '#666', marginTop: 4 }}>
-        Engine smoke test — Breck snowboarding, 16°F, 6 hours
-      </p>
+    <div className="pill-card">
+      <div className="pill-card-header">
+        <h3 className="pill-card-title">{PILL_LABELS[pill.pill_id]}</h3>
+        {stubbed && <span className="pill-preview-badge">Preview</span>}
+      </div>
 
-      <div style={{ marginTop: 32 }}>
-        <div style={{ fontSize: 14, color: '#666' }}>Peak MR</div>
-        <div style={{ fontSize: 72, fontWeight: 700, lineHeight: 1 }}>
-          {result.trip_headline.peak_MR.toFixed(2)}
+      <div className="pill-headline">
+        <span className="pill-headline-label">Peak MR</span>
+        <span className={`pill-headline-value ${tierClass(mrTier)}`}>
+          {summary.peak_MR.toFixed(1)}
+        </span>
+      </div>
+
+      <div className="pill-secondary-row">
+        <div className="pill-secondary-cell">
+          <span className="pill-secondary-label">Peak HLR</span>
+          <span className={`pill-secondary-value ${tierClass(hlrTier)}`}>
+            {summary.peak_HLR.toFixed(1)}
+          </span>
+        </div>
+        <div className="pill-secondary-cell">
+          <span className="pill-secondary-label">Peak CDI</span>
+          <span className={`pill-secondary-value ${tierClass(cdiTier)}`}>
+            {summary.peak_CDI.toFixed(1)}
+          </span>
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 32,
-          padding: 16,
-          background: '#f5f5f5',
-          borderRadius: 4,
-          fontSize: 13,
-          fontFamily: 'monospace',
-        }}
-      >
-        <div>engine_version: {result.engine_version}</div>
-        <div>peak_HLR: {result.trip_headline.peak_HLR.toFixed(2)}</div>
-        <div>peak_CDI: {result.trip_headline.peak_CDI.toFixed(2)}</div>
-        <div>
-          peak_clinical_stage: {result.trip_headline.peak_clinical_stage}
+      <div className="pill-tags">
+        <span className={`pill-tag ${tierClass(stageTier)}`}>
+          {summary.peak_clinical_stage.replace(/_/g, ' ')}
+        </span>
+        <span className="pill-tag">{summary.regime}</span>
+        <span className="pill-tag">{summary.binding_pathway}</span>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// App — runs evaluate() once, renders four pills + scenario meta + disclosure
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function App() {
+  const result = evaluate(BRECK_INPUT);
+  const fp = result.four_pill;
+
+  return (
+    <div className="page">
+      <header className="page-header">
+        <h1 className="page-title">LayerCraft v6</h1>
+        <p className="page-subtitle">
+          Engine smoke test — four-pill recommendation surface
+        </p>
+      </header>
+
+      <div className="scenario-meta">
+        <div className="scenario-meta-item">
+          <span className="scenario-meta-label">Activity</span>
+          <span className="scenario-meta-value">Snowboarding</span>
         </div>
-        <div>
-          trajectory length:{' '}
-          {result.four_pill.your_gear.trajectory.length} points
+        <div className="scenario-meta-item">
+          <span className="scenario-meta-label">Location</span>
+          <span className="scenario-meta-value">Breckenridge</span>
         </div>
-        <div>
-          IREQ feasible:{' '}
-          {String(result.ireq_summary.user_ensemble_feasible)}
+        <div className="scenario-meta-item">
+          <span className="scenario-meta-label">Conditions</span>
+          <span className="scenario-meta-value">
+            16°F · 45% RH · 10 mph
+          </span>
         </div>
+        <div className="scenario-meta-item">
+          <span className="scenario-meta-label">Duration</span>
+          <span className="scenario-meta-value">6 hours</span>
+        </div>
+        <div className="scenario-meta-item">
+          <span className="scenario-meta-label">Engine</span>
+          <span className="scenario-meta-value">{result.engine_version}</span>
+        </div>
+      </div>
+
+      <div className="pill-grid">
+        <PillCard pill={fp.your_gear} />
+        <PillCard pill={fp.pacing} />
+        <PillCard pill={fp.optimal_gear} />
+        <PillCard pill={fp.best_outcome} />
+      </div>
+
+      <div className="preview-disclosure">
+        <div className="preview-disclosure-title">
+          About the Preview pills
+        </div>
+        Pacing and Best Outcome pills currently mirror the values of Your
+        Gear and Optimal Gear respectively. The pacing-aware computation
+        (precognitive vent and break scheduling) is in development. Once
+        the pacing engine is wired to vent events, these pills will diverge
+        from their paired pills with their own trajectory.
       </div>
     </div>
   );

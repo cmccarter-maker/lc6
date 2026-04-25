@@ -1,0 +1,292 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LayerCraft v6 — basic polish stylesheet (S-UI-02b)
+   Scope: four-pill display with risk-tier color coding + preview badges.
+   No design system yet; this is a single-screen product surface.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --color-bg: #fafaf8;
+  --color-fg: #1a1a1a;
+  --color-fg-muted: #6b6b6b;
+  --color-card-bg: #ffffff;
+  --color-card-border: #e8e8e6;
+  --color-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+
+  /* Risk tier colors — used for MR/HLR/CDI value displays.
+     Match the LC4 era 5-tier risk palette but UI uses a simplified 3-tier
+     mapping (low / elevated / critical) for value chips. */
+  --color-tier-low: #2f7d4f;        /* green */
+  --color-tier-low-bg: #e8f3ec;
+  --color-tier-elevated: #b87a1d;   /* amber */
+  --color-tier-elevated-bg: #fbf3e3;
+  --color-tier-critical: #b3372f;   /* red */
+  --color-tier-critical-bg: #fbe9e7;
+
+  /* Preview badge — for SEMANTICALLY-STUBBED pills */
+  --color-preview-fg: #6b5a1d;
+  --color-preview-bg: #f6efd0;
+  --color-preview-border: #d9c47a;
+
+  /* Layout */
+  --spacing-page-padding: 32px;
+  --spacing-card-padding: 20px;
+  --spacing-card-gap: 16px;
+  --radius-card: 8px;
+  --radius-badge: 4px;
+
+  /* Typography */
+  --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-size-page-title: 28px;
+  --font-size-card-title: 14px;
+  --font-size-headline-value: 36px;
+  --font-size-secondary-value: 18px;
+  --font-size-label: 11px;
+  --font-size-meta: 12px;
+  --font-size-badge: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-stack);
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.page {
+  padding: var(--spacing-page-padding);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: 8px;
+}
+
+.page-title {
+  font-size: var(--font-size-page-title);
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: var(--color-fg-muted);
+  margin: 4px 0 0 0;
+}
+
+.scenario-meta {
+  display: flex;
+  gap: 24px;
+  margin-top: 24px;
+  padding: 12px 16px;
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-card);
+  font-size: var(--font-size-meta);
+}
+
+.scenario-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scenario-meta-label {
+  font-size: var(--font-size-label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-fg-muted);
+}
+
+.scenario-meta-value {
+  font-size: var(--font-size-meta);
+  font-weight: 500;
+}
+
+.pill-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-card-gap);
+  margin-top: 24px;
+}
+
+@media (max-width: 1024px) {
+  .pill-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .pill-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pill-card {
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-card);
+  padding: var(--spacing-card-padding);
+  box-shadow: var(--color-card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+}
+
+.pill-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.pill-card-title {
+  font-size: var(--font-size-card-title);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-fg-muted);
+  margin: 0;
+}
+
+.pill-preview-badge {
+  display: inline-block;
+  font-size: var(--font-size-badge);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 6px;
+  background-color: var(--color-preview-bg);
+  color: var(--color-preview-fg);
+  border: 1px solid var(--color-preview-border);
+  border-radius: var(--radius-badge);
+  white-space: nowrap;
+}
+
+.pill-headline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pill-headline-label {
+  font-size: var(--font-size-label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-fg-muted);
+}
+
+.pill-headline-value {
+  font-size: var(--font-size-headline-value);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.pill-headline-value.tier-low {
+  color: var(--color-tier-low);
+}
+
+.pill-headline-value.tier-elevated {
+  color: var(--color-tier-elevated);
+}
+
+.pill-headline-value.tier-critical {
+  color: var(--color-tier-critical);
+}
+
+.pill-secondary-row {
+  display: flex;
+  gap: 12px;
+}
+
+.pill-secondary-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pill-secondary-label {
+  font-size: var(--font-size-label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-fg-muted);
+}
+
+.pill-secondary-value {
+  font-size: var(--font-size-secondary-value);
+  font-weight: 600;
+}
+
+.pill-secondary-value.tier-low {
+  color: var(--color-tier-low);
+}
+
+.pill-secondary-value.tier-elevated {
+  color: var(--color-tier-elevated);
+}
+
+.pill-secondary-value.tier-critical {
+  color: var(--color-tier-critical);
+}
+
+.pill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-card-border);
+}
+
+.pill-tag {
+  font-size: var(--font-size-meta);
+  padding: 3px 8px;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-badge);
+  color: var(--color-fg-muted);
+}
+
+.pill-tag.tier-low {
+  background-color: var(--color-tier-low-bg);
+  color: var(--color-tier-low);
+  border-color: transparent;
+}
+
+.pill-tag.tier-elevated {
+  background-color: var(--color-tier-elevated-bg);
+  color: var(--color-tier-elevated);
+  border-color: transparent;
+}
+
+.pill-tag.tier-critical {
+  background-color: var(--color-tier-critical-bg);
+  color: var(--color-tier-critical);
+  border-color: transparent;
+}
+
+.preview-disclosure {
+  margin-top: 32px;
+  padding: 12px 16px;
+  background-color: var(--color-preview-bg);
+  border: 1px solid var(--color-preview-border);
+  border-radius: var(--radius-card);
+  font-size: 13px;
+  color: var(--color-preview-fg);
+  line-height: 1.5;
+}
+
+.preview-disclosure-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
